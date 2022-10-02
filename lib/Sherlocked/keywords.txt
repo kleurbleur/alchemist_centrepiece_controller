@@ -1,0 +1,76 @@
+#######################################
+# Syntax Coloring Map For Sherlocked
+
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+ #######################################
+
+Sherlocked	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+setName	KEYWORD2
+getName	KEYWORD2
+
+setOutputCallback	KEYWORD2   
+setInputCallback	KEYWORD2 
+setStateCallback	KEYWORD2 
+setCommandCallback	KEYWORD2 
+setJSONCallback	KEYWORD2
+
+sendState	KEYWORD2
+sendInput	KEYWORD2
+sendInputs	KEYWORD2
+sendOutput	KEYWORD2
+sendOutputs	KEYWORD2
+send	KEYWORD2
+
+parse	KEYWORD2
+
+getTriggerStr	KEYWORD2
+getMethodStr	KEYWORD2
+getCommandStr	KEYWORD2
+getStateStr	KEYWORD2
+
+getTriggerID	KEYWORD2
+getMethodID	KEYWORD2
+getCommandID	KEYWORD2
+getStateID	KEYWORD2
+    
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+
+S_UNKNOWN	LITERAL1
+S_IDLE	LITERAL1
+S_ACTIVE	LITERAL1
+S_SOLVED	LITERAL1
+
+M_GET	LITERAL1
+M_PUT	LITERAL1
+M_INFO	LITERAL1 
+
+T_STARTUP	LITERAL1
+T_RESET	LITERAL1
+T_INPUT	LITERAL1
+T_STATE	LITERAL1
+T_TIME	LITERAL1
+T_LOGIC	LITERAL1
+T_SERVER	LITERAL1
+T_REQUEST	LITERAL1
+T_DISCONNECT	LITERAL1
+T_CONNECTED	LITERAL1
+
+CMD_RESET	LITERAL1
+CMD_SYNC	LITERAL1
+CMD_REBOOT	LITERAL1
+CMD_OTA	LITERAL1
+INFO_SYSTEM	LITERAL1
+INFO_STATE	LITERAL1
+INFO_FULLSTATE	LITERAL1
