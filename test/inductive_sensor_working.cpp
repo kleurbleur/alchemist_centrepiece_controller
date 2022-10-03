@@ -1,3 +1,8 @@
+// working test code for the IFS253 inductive sensor connected used with a optocoupler board and 24V psu. 
+// black wire is signal on 
+// brown v+
+// blue v- 
+
 #include <Arduino.h>
 
 const int ind_s1 = 32;
