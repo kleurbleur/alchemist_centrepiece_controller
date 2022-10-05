@@ -19,63 +19,27 @@ const char puzzle_topic[] = "alch/centrepiece";
 const char module_topic[] = "alch/centrepiece/controller";      // the module name of the board <= REPLACE
 IPAddress server(192, 168, 178, 214);                           // ip address of the mqtt/ace server <= REPLACE
 
-
 // controller settings
-
-//pwm 
-const int freq = 5000;
-const int ledChannel = 0;
-const int resolution = 12;
-const int led_hole_pin = 16;
+const int ind_sA_top = 34;
+const int ind_sA_down = 35;
+const int ind_sB_top = 36;
+const int ind_sB_down = 39;
 
 
-// SETUP LIBS
+// CODE
 WiFiClient ethclient;
 PubSubClient client(ethclient);
 
-
 // variables 
 static bool eth_connected = false;
-unsigned long currentMicros = micros();
-unsigned long previousMicros = 0;
-int long interval = 500;
-bool running = false;
-bool fade_reached = false;
-bool led_hole_begin = false; 
-bool led_hole_end = false; 
-int dutyCycle = 0; 
-
-
-// CONTROLLER SPECIFIC FUNCTIONS
-void led_hole(int start_end)
-{
-  Serial.print("led_hole received: ");
-  Serial.println(start_end);
-
-  // increase the LED brightness
-  if ( start_end == 1){
-    Serial.println("set the led hole state");
-    led_hole_end = false;
-    led_hole_begin = true;
-  }
-
-  // increase the LED brightness
-  if ( start_end == 0){
-    Serial.println("set the led hole state");
-    led_hole_begin = false;
-    led_hole_end = true;
-  }
-}
-
-void outputStateMachine(int id, int value)
-{
-  if (id == 5 ){
-    Serial.println("id_5 received in outputStateMachine");
-    led_hole(value);
-  }
-
-}
-
+bool sensor_1_true = false;
+bool sensor_1_false = false;
+bool sensor_2_true = false;
+bool sensor_2_false = false;
+bool sensor_3_true = false;
+bool sensor_3_false = false;
+bool sensor_4_true = false;
+bool sensor_4_false = false;
 
 // declare function prototypes 
 void pubMsg_kb(const char * method, const char *param1=(char*)'\0', const char *val1=(char*)'\0', const char *param2=(char*)'\0', const char *val2=(char*)'\0' );
@@ -299,9 +263,8 @@ void outputCallback(int meth, int numOutputs, int ids[], int vals[], int trigger
     // set all desired outputs
     for (int i = 0; i < numOutputs; i++)
     {
-      // set value SET HERE YOUR STATE OR START YOUR ACTION NEEDED.
+      // set value
       dbf("\timplement: setOutput(int id: %i, int val: %i)\n", ids[i], vals[i]);
-      outputStateMachine(ids[i], vals[i]);
     }
 
     // And compile a reply to let the server know the new outputs state
@@ -654,8 +617,9 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Conductive MQTT Sensor");
 
-  ledcSetup(ledChannel, freq, resolution);
-  ledcAttachPin(led_hole_pin, ledChannel);
+  pinMode(ind_sA_top, INPUT_PULLUP);
+  pinMode(ind_sA_down, INPUT_PULLUP);
+
 
   WiFi.onEvent(WiFiEvent);
   ETH.begin();
@@ -695,41 +659,57 @@ void loop() {
   }
   client.loop();  
 
-  // setup for the non blocking functions
-  unsigned long currentMicros = micros();
+  int sensor_1 = digitalRead(ind_sA_top);
+  int sensor_2 = digitalRead(ind_sA_down);
+  int sensor_3 = digitalRead(ind_sB_top);
+  int sensor_4 = digitalRead(ind_sB_down);  
 
-
-  // increase the LED brightness
-  if ( led_hole_begin == true && dutyCycle <= 4096)
-  {
-    if (currentMicros - previousMicros >= interval) 
-    {
-      previousMicros = currentMicros;   
-      dutyCycle++;
-      // Serial.println(dutyCycle);
-      ledcWrite(ledChannel, dutyCycle);
-      if (dutyCycle == 4096){
-        led_hole_begin = false;
-        Serial.println("led_hole fade in done");
-      }
-    } 
+  if (sensor_1 == 0 && sensor_1_true == false){
+    sensor_1_true = true;
+    sensor_1_false = false;
+    Serial.println("Sensor Arm A TOP NOT seeing arm");
+    pubMsg_kb("info", "inputs", "[{\"id\":17, \"value\":1}]", "trigger", "input");   // <= REPLACE
+  } else if (sensor_1 == 1 && sensor_1_false == false) {
+    sensor_1_true = false;
+    sensor_1_false = true;
+    Serial.println("Sensor Arm A TOP SEEING arm");
+    pubMsg_kb("info", "inputs", "[{\"id\":17, \"value\":0}]", "trigger", "input");   // <= REPLACE
   }
 
-  if (led_hole_end == true && dutyCycle >= 0)
-  {
-    if (currentMicros - previousMicros >= interval) 
-    {
-      previousMicros = currentMicros;   
-      dutyCycle--;
-      // Serial.println(dutyCycle);
-      ledcWrite(ledChannel, dutyCycle);
-      if (dutyCycle == 0){
-        led_hole_end = false;
-        Serial.println("led_hole fade out done");
-      }
-    } 
+  if (sensor_2 == 0 && sensor_2_true == false){
+    sensor_2_true = true;
+    sensor_2_false = false;
+    Serial.println("Sensor Arm A DOWN NOT seeing arm");
+    pubMsg_kb("info", "inputs", "[{\"id\":18, \"value\":1}]", "trigger", "input");   // <= REPLACE
+  } else if (sensor_2 == 1 && sensor_2_false == false) {
+    sensor_2_true = false;
+    sensor_2_false = true;
+    Serial.println("Sensor Arm A DOWN SEEING arm");
+    pubMsg_kb("info", "inputs", "[{\"id\":18, \"value\":0}]", "trigger", "input");   // <= REPLACE
   }
-  
 
+  if (sensor_3 == 0 && sensor_3_true == false){
+    sensor_3_true = true;
+    sensor_3_false = false;
+    Serial.println("Sensor Arm B TOP NOT seeing arm");
+    pubMsg_kb("info", "inputs", "[{\"id\":19, \"value\":1}]", "trigger", "input");   // <= REPLACE
+  } else if (sensor_3 == 1 && sensor_3_false == false) {
+    sensor_3_true = false;
+    sensor_3_false = true;
+    Serial.println("Sensor Arm B TOP SEEING arm");
+    pubMsg_kb("info", "inputs", "[{\"id\":19, \"value\":0}]", "trigger", "input");   // <= REPLACE
+  }
+
+  if (sensor_4 == 0 && sensor_4_true == false){
+    sensor_4_true = true;
+    sensor_4_false = false;
+    Serial.println("Sensor Arm B TOP NOT seeing arm");
+    pubMsg_kb("info", "inputs", "[{\"id\":20, \"value\":1}]", "trigger", "input");   // <= REPLACE
+  } else if (sensor_4 == 1 && sensor_4_false == false) {
+    sensor_4_true = false;
+    sensor_4_false = true;
+    Serial.println("Sensor Arm B TOP SEEING arm");
+    pubMsg_kb("info", "inputs", "[{\"id\":20, \"value\":0}]", "trigger", "input");   // <= REPLACE
+  }
 
 }

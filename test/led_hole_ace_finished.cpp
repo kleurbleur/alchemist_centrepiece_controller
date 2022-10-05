@@ -19,16 +19,62 @@ const char puzzle_topic[] = "alch/centrepiece";
 const char module_topic[] = "alch/centrepiece/controller";      // the module name of the board <= REPLACE
 IPAddress server(192, 168, 178, 214);                           // ip address of the mqtt/ace server <= REPLACE
 
+
 // controller settings
-const int ind_s1 = 13;
+
+//pwm 
+const int freq = 5000;
+const int ledChannel = 0;
+const int resolution = 12;
+const int led_hole_pin = 16;
 
 
-// CODE
+// SETUP LIBS
 WiFiClient ethclient;
 PubSubClient client(ethclient);
 
+
 // variables 
 static bool eth_connected = false;
+unsigned long currentMicros = micros();
+unsigned long previousMicros = 0;
+int long interval = 500;
+bool running = false;
+bool fade_reached = false;
+bool led_hole_begin = false; 
+bool led_hole_end = false; 
+int dutyCycle = 0; 
+
+
+// CONTROLLER SPECIFIC FUNCTIONS
+void led_hole(int start_end)
+{
+  Serial.print("led_hole received: ");
+  Serial.println(start_end);
+
+  // increase the LED brightness
+  if ( start_end == 1){
+    Serial.println("set the led hole state");
+    led_hole_end = false;
+    led_hole_begin = true;
+  }
+
+  // increase the LED brightness
+  if ( start_end == 0){
+    Serial.println("set the led hole state");
+    led_hole_begin = false;
+    led_hole_end = true;
+  }
+}
+
+void outputStateMachine(int id, int value)
+{
+  if (id == 5 ){
+    Serial.println("id_5 received in outputStateMachine");
+    led_hole(value);
+  }
+
+}
 
 
 // declare function prototypes 
@@ -253,8 +299,9 @@ void outputCallback(int meth, int numOutputs, int ids[], int vals[], int trigger
     // set all desired outputs
     for (int i = 0; i < numOutputs; i++)
     {
-      // set value
+      // set value SET HERE YOUR STATE OR START YOUR ACTION NEEDED.
       dbf("\timplement: setOutput(int id: %i, int val: %i)\n", ids[i], vals[i]);
+      outputStateMachine(ids[i], vals[i]);
     }
 
     // And compile a reply to let the server know the new outputs state
@@ -607,6 +654,9 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Conductive MQTT Sensor");
 
+  ledcSetup(ledChannel, freq, resolution);
+  ledcAttachPin(led_hole_pin, ledChannel);
+
   WiFi.onEvent(WiFiEvent);
   ETH.begin();
   if (eth_connected){
@@ -645,6 +695,41 @@ void loop() {
   }
   client.loop();  
 
+  // setup for the non blocking functions
+  unsigned long currentMicros = micros();
+
+
+  // increase the LED brightness
+  if ( led_hole_begin == true && dutyCycle <= 4096)
+  {
+    if (currentMicros - previousMicros >= interval) 
+    {
+      previousMicros = currentMicros;   
+      dutyCycle++;
+      // Serial.println(dutyCycle);
+      ledcWrite(ledChannel, dutyCycle);
+      if (dutyCycle == 4096){
+        led_hole_begin = false;
+        Serial.println("led_hole fade in done");
+      }
+    } 
+  }
+
+  if (led_hole_end == true && dutyCycle >= 0)
+  {
+    if (currentMicros - previousMicros >= interval) 
+    {
+      previousMicros = currentMicros;   
+      dutyCycle--;
+      // Serial.println(dutyCycle);
+      ledcWrite(ledChannel, dutyCycle);
+      if (dutyCycle == 0){
+        led_hole_end = false;
+        Serial.println("led_hole fade out done");
+      }
+    } 
+  }
+  
 
 
 }
