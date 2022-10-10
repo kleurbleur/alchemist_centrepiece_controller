@@ -5,10 +5,13 @@
 #include <ETH.h>
 #include <PubSubClient.h>
 #include <Sherlocked.h>
+#include <NeoPixelBus.h>
+#include <NeoPixelAnimator.h>
+
 
 
 // Firmware version
-char firmware_version[] = "0.4";                                // now we support outputCallback M = M_Put!  
+char firmware_version[] = "0.5";                                // now we support outputCallback M = M_Put!  
 
 // SETTINGS
 
@@ -27,6 +30,20 @@ const int freq = 5000;
 const int ledChannel = 0;
 const int resolution = 12;
 
+//led ring 
+const uint16_t loop_time = 1;         // the time it costs to loop over a ring
+const uint16_t TailLength = 80;       // length of the tail, must be shorter than PixelCount
+const uint16_t PixelCount = 720;      // make sure to set this to the number of pixels in your strip
+
+const float MaxLightness = 0.2f;       // max lightness at the head of the tail (0.5f is full bright)
+const float saturation = 0.05f;         // saturation scales from 0.0f to 1.0f with 0.0f no saturation
+const float hue = 0.16667f;            // hue scales from 0.0f to 1.0f
+
+
+const uint16_t AnimCount = 1;           // we only need one
+const uint16_t timeScale = NEO_MILLISECONDS; // make sure it's set at milliseconds, although it is the default
+
+
 
 // PIN ASSIGNMENT
 const int motor_controller_arm_A_start_pin = 13;
@@ -37,9 +54,11 @@ const int motor_controller_arm_B_start_pin = 32;
 const int motor_controller_arm_B_end_pin = 33;
 const int motor_controller_arm_B_enable_pin = 34;
 const int arm_B_solenoid_safety_pin = 35;
-const int motor_controller_rings_start_pin = 2;
-const int motor_controller_rings_enable_pin = 3;
-const int led_rings_pin = 4;
+const int motor_controller_rings_start_pin = 36;
+const int motor_controller_rings_enable_pin = 39;
+const int led_ring_1_pin = 2;
+const int led_ring_2_pin = 3;
+const int led_ring_3_pin = 4;
 const int led_hole_pin = 5;
 
 
@@ -47,6 +66,12 @@ const int led_hole_pin = 5;
 // SETUP LIBS
 WiFiClient ethclient;
 PubSubClient client(ethclient);
+NeoGamma<NeoGammaTableMethod> colorGamma; 
+NeoPixelBus<NeoGrbwFeature, NeoSk6812Method> ring1(PixelCount, led_ring_1_pin);
+NeoPixelBus<NeoGrbwFeature, NeoSk6812Method> ring2(PixelCount, led_ring_2_pin);
+NeoPixelBus<NeoGrbwFeature, NeoSk6812Method> ring3(PixelCount, led_ring_3_pin);
+// NeoPixel animation management object
+NeoPixelAnimator animations(AnimCount, timeScale ); 
 
 
 // variables 
@@ -165,11 +190,11 @@ void motor_controller_rings_enable(int start){
 void led_rings(int start){
   if (start == 1)
   {
-    digitalWrite(led_rings_pin, HIGH);
+    // digitalWrite(led_rings_pin, HIGH);
   } 
   else 
   {
-    digitalWrite(led_rings_pin, LOW);
+    // digitalWrite(led_rings_pin, LOW);
   }    
 }
 
@@ -232,6 +257,34 @@ void outputStateMachine(int id, int value)
   if (id == 12 ){
     led_hole(value);
   }
+}
+
+
+void LoopAnimUpdate(const AnimationParam& param)
+{
+    // wait for this animation to complete,
+    // we are using it as a timer of sorts
+    if (param.state == AnimationState_Completed)
+    {
+        // done, time to restart this position tracking animation/timer
+        animations.RestartAnimation(param.index);
+
+        // rotate the complete strip one pixel to the right on every update
+        ring1.RotateRight(8);
+    }
+}
+
+void DrawTailPixels()
+{
+    // using Hsl as it makes it easy to pick from similiar saturated colors
+    // float hue = 1.0f;
+    for (uint16_t index = 0; index < ring1.PixelCount() && index <= TailLength; index++)
+    {
+        float lightness = index * MaxLightness / TailLength;
+        RgbwColor color = HslColor(hue, saturation, lightness);
+
+        ring1.SetPixelColor(index, colorGamma.Correct(color));
+    }
 }
 
 
@@ -816,6 +869,15 @@ void setup() {
   ledcSetup(ledChannel, freq, resolution);
   ledcAttachPin(led_hole_pin, ledChannel);
 
+  ring1.Begin();
+  ring1.Show();
+
+  // Draw the tail that will be rotated through all the rest of the pixels
+  DrawTailPixels();
+
+  // we use the index 0 animation to time how often we rotate all the pixels
+  animations.StartAnimation(0, loop_time, LoopAnimUpdate);   
+
   // start the ethernet client
   WiFi.onEvent(WiFiEvent);
   ETH.begin();
@@ -860,6 +922,8 @@ void loop() {
   // setup for the non blocking functions
   unsigned long currentMicros = micros();
 
+    animations.UpdateAnimations();
+    ring1.Show();
 
   // Led_hole animations 
   // increase the LED brightness
