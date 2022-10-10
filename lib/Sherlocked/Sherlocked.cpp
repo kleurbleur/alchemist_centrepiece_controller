@@ -327,10 +327,10 @@ bool SherlockedClass::parse(char * incomingMessage)
 					if(outputCallback)
 					{
 						int trig = getTriggerID(sender);
-				  	if (trig == UNDEFINED && root.containsKey("trigger"))
-				  	{
-							trig = getTriggerID(root["trigger"]);
-				  	}
+						if (trig == UNDEFINED && root.containsKey("trigger"))
+						{
+								trig = getTriggerID(root["trigger"]);
+						}
 						outputCallback(meth, numOutputs, ids, vals, trig);	
 						handled = true;
 					}
