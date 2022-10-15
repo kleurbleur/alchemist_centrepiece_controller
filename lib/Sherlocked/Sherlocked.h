@@ -55,8 +55,8 @@
 #define SHERLOCKED_JSON_CALLBACK void (*jsonCallback)(JsonObject& json)
 #endif
 
-static const uint16_t MESSAGE_LENGTH = 1024;
-static const char SHERLOCKED_VERSION[] = "Sherlocked_v0.7";
+static const uint16_t MESSAGE_LENGTH = 4096;
+static const char SHERLOCKED_VERSION[] = "Sherlocked_v0.8";
 
 #define UNDEFINED -1
 #define dbf Serial.printf
@@ -159,6 +159,9 @@ class SherlockedClass
 
   char _name[64];
   char _pubBuf[MESSAGE_LENGTH];
+
+  StaticJsonBuffer<MESSAGE_LENGTH> _jsonRcvBuf;
+  StaticJsonBuffer<MESSAGE_LENGTH> _jsonPubBuf;
 
 	SHERLOCKED_INPUT_CALLBACK;
 	SHERLOCKED_OUTPUT_CALLBACK;

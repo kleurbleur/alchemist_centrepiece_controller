@@ -475,12 +475,47 @@ char * getAllInputs()
   char * msg = Sherlocked.sendInputs(NUM_INPUTS, inIDs, inValues, T_REQUEST);
   return(msg);
 }
+// helper functions for getting the right value for the right id
+int getOutputValueByID(int id)
+{
+  for(int i = 0; i < NUM_OUTPUTS; i++)
+  {
+    if(outIDs[i] == id)
+    {
+      return outValues[i];
+    }
+  }
+}
+int getInputValueByID(int id)
+{
+  for(int i = 0; i < NUM_INPUTS; i++)
+  {
+    if(inIDs[i] == id)
+    {
+      return inValues[i];
+    }
+  }
+}
+int getPosInArrayByValue(int value, int array_length, int array){
+  bool found_val = false;
+  int pos;
+  for (int i = 0; i < array_length; i++)
+  {
+    if (value == array[i])
+    {
+      found_val = true;
+      pos = i;
+    }
+    else if (!found_val){
+      pos = -1;
+    }
+  }    
+  return pos;      
 
-
+}
 
 // puzzle controller specific functions
 void resetPuzzle(){
-  
   pubMsg_kb("info", "state", "reset");
 };
 
@@ -614,25 +649,26 @@ void inputCallback(int meth, int numInputs, int ids[], int vals[], int trigger)
     // The get method only has ids; fill in the values with the values that correspond to the input ID
     if (numInputs > 0)
     {
+      int s_ids[numInputs];
+      int s_vals[numInputs];
+
       for (int i = 0; i < numInputs; i++)
       {
-        vals[i] = random(0, 8);
+        Serial.print("ids[i]: ");
+        Serial.println(ids[i]);
+        if ( ids[i] == inIDs[i])
+        {
+          s_vals[i] = getInputValueByID(ids[i]);
+          s_ids[i] =  inIDs[i];
+        }
       }
-      char * msg = Sherlocked.sendInputs(numInputs, ids, vals, T_REQUEST);
-      pubMsg(msg);
+
+      char * msg = Sherlocked.sendInputs(numInputs, s_ids, s_vals, T_REQUEST);
+      pubMsg(msg);   
     }
     else  // If no input id's are provided, feed them all back
     {
-      numInputs = 10;
-      // store ids and values in new arrays so we have sufficient space
-      int aids[numInputs];
-      int avals[numInputs];
-      for (int i = 0; i < numInputs; i++)
-      {
-        aids[i]   =  i + 1;
-        avals[i]  =  random(0,255);
-      }
-      char * msg = Sherlocked.sendInputs(numInputs, aids, avals, T_REQUEST);
+      char * msg = Sherlocked.sendInputs(NUM_INPUTS, inIDs, inValues, T_REQUEST);
       pubMsg(msg);
     }
   }
@@ -693,17 +729,7 @@ void outputCallback(int meth, int numOutputs, int ids[], int vals[], int trigger
     }
     else  // If no output id's are provided, feed them all back
     {
-      // numOutputs = 10;
-      // // store ids and values in new arrays so we have sufficient space
-      // int allids[NUM_OUTPUTS];
-      // int allvals[NUM_OUTPUTS];
-      // for (int i = 0; i < NUM_OUTPUTS; i++)
-      // {
-      //   allids[i]   =  outIDs[i];
-      //   allvals[i]  =  outValues[i];
-      // }
-      Serial.println("allout");
-      pubMsg(Sherlocked.sendOutputs(numOutputs, outIDs, outValues, T_REQUEST));
+      pubMsg(Sherlocked.sendOutputs(NUM_OUTPUTS, outIDs, outValues, T_REQUEST));
     }
   }
   else if (meth == M_INFO) // listen to other output info
@@ -995,28 +1021,40 @@ void commandCallback(int meth, int cmd, const char value[], int triggerID)
 
     case INFO_STATE:
       dbf("state requested\n");
-      pubMsg(Sherlocked.sendState(getState(), triggerID));
+      pubMsg(Sherlocked.sendState(getState(), T_REQUEST));
       break;
 
     case INFO_FULLSTATE:
       dbf("full state requested\n");
       // {"sender":"controller","state":"idle","connected":true,"inputs":[{"id":1,"value":1}],"outputs":[{"id":1,"value":0},{"id":3,"value":1}],"method":"info","trigger":"request"}
-      DynamicJsonBuffer  jsonBuffer(200);
+      DynamicJsonBuffer  jsonBuffer(400);
       JsonObject& root = jsonBuffer.createObject();
       root["sender"] = hostname;
       root["state"] = getState();
       root["connected"] = client.connected();
+      JsonArray& inputs = root.createNestedArray("inputs");
+      for (int i = 0; i < NUM_INPUTS; i++)
+      {
+        JsonObject& ind_val = inputs.createNestedObject();
+        ind_val["id"] = inIDs[i];
+        ind_val["value"] = inValues[i];
+      }
       JsonArray& outputs = root.createNestedArray("outputs");
       for (int i = 0; i < NUM_OUTPUTS; i++)
       {
-        JsonObject& id_val = outputs.createNestedObject();
-        id_val["id"] = outIDs[i];
-        id_val["value"] = outValues[i];
+        JsonObject& ond_val = outputs.createNestedObject();
+        ond_val["id"] = outIDs[i];
+        ond_val["value"] = outValues[i];
       }
       root["trigger"] = "request";
-      char full_char[1024];
-      root.printTo(full_char, sizeof(full_char));
+      char full_char[1200];
+      root.prettyPrintTo(full_char, sizeof(full_char));
       pubMsg(full_char);
+
+
+      // sprintf(full_state, " \"state\":\"%s\", \"connected\": \"%s\", \"inputs\":[{\"id\":1,\"value\":1}] ", getState(), client.connected() );
+      // pubMsg_kb("info", "info", full_state, "trigger", "request");
+      // Expects to receive back a full state with all relevant inputs and outputs
       break;
   }
 }
@@ -1050,7 +1088,7 @@ void setup() {
   // start the mqtt client
   client.setServer(server, 1883);
   client.setCallback(callback);
-  client.setBufferSize(1024);
+  client.setBufferSize(1200);
 
   // Allow the hardware to sort itself out
   delay(1500);

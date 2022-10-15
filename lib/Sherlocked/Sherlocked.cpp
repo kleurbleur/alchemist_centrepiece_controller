@@ -70,8 +70,10 @@ char * SherlockedClass::send(JsonObject& root)
 
 char * SherlockedClass::sendState(int state, int trig)
 {
-	StaticJsonBuffer<MESSAGE_LENGTH> jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
+	// StaticJsonBuffer<MESSAGE_LENGTH> jsonBuffer;
+ //  JsonObject& root = jsonBuffer.createObject();
+  _jsonPubBuf.clear();
+  JsonObject& root = _jsonPubBuf.createObject();
   root["sender"] = getName();
   root["connected"] = true;
   if(state != UNDEFINED)
@@ -86,8 +88,10 @@ char * SherlockedClass::sendState(int state, int trig)
 
 char * SherlockedClass::sendInputs(int len, int ids[], int vals[], int trig)
 {
-	StaticJsonBuffer<MESSAGE_LENGTH> jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
+	// StaticJsonBuffer<MESSAGE_LENGTH> jsonBuffer;
+ //  JsonObject& root = jsonBuffer.createObject();
+  _jsonPubBuf.clear();
+  JsonObject& root = _jsonPubBuf.createObject();
   root["sender"] = getName();
 
   JsonArray& outputs = root.createNestedArray("inputs");
@@ -112,8 +116,10 @@ char * SherlockedClass::sendInput(int id, int val, int trig)
 
 char * SherlockedClass::sendOutputs(int len, int ids[], int vals[], int trig)
 {
-  StaticJsonBuffer<MESSAGE_LENGTH> jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
+  // StaticJsonBuffer<MESSAGE_LENGTH> jsonBuffer;
+  // JsonObject& root = jsonBuffer.createObject();
+  _jsonPubBuf.clear();
+  JsonObject& root = _jsonPubBuf.createObject();
   root["sender"] = getName();
 
   JsonArray& outputs = root.createNestedArray("outputs");
@@ -143,17 +149,19 @@ bool SherlockedClass::parse(char * incomingMessage)
   // Serial.println(incomingMessage);
 
   // possibly make the size of inc mes len
-  StaticJsonBuffer<MESSAGE_LENGTH> jsonBuffer;
+  // StaticJsonBuffer<MESSAGE_LENGTH> jsonBuffer;
+  // JsonObject &root = jsonBuffer.parseObject(incomingMessage);
 
-  JsonObject &root = jsonBuffer.parseObject(incomingMessage);
+	_jsonRcvBuf.clear();
+  	JsonObject &root = _jsonRcvBuf.parseObject(incomingMessage);
 
   // Test if parsing succeeds.
-  if (!root.success()) {
+   if (!root.success()) {
 		Serial.println(("MQTT JSON parseObject() failed"));
 		//    Serial.println("{\"err\":\"events\"}");
-  }
-  else
-  {
+   }
+   else
+   {
 		if (root.containsKey("sender"))
 		{
 		  const char* s = root["sender"];
@@ -180,7 +188,9 @@ bool SherlockedClass::parse(char * incomingMessage)
 
 		if (!root.containsKey("method"))
 		{
-		  dbf("No method defined, ignore message\n");
+		  dbf("No method defined, ignore message: ");
+		  root.printTo(Serial);
+	  		Serial.println();
 		  return false;
 		}
 
@@ -194,8 +204,8 @@ bool SherlockedClass::parse(char * incomingMessage)
 		
 		
 		dbf("Sherlocked.parse() : ");
-		root.printTo(Serial);
-		Serial.println();
+	  	root.printTo(Serial);
+	  	Serial.println();
 
 		if (meth == M_PUT || meth == M_INFO)
 		{
@@ -292,17 +302,17 @@ bool SherlockedClass::parse(char * incomingMessage)
 					char val[64];
 					strcpy(val, "");
 					if (root.containsKey("file"))
-					{
+				  {
 						const char* file = root["file"];
 						strcpy(val, file);
 					}
 					if(commandCallback)
 					{
 						int trig = getTriggerID(sender);
-						if (trig == UNDEFINED && root.containsKey("trigger"))
-						{
-								trig = getTriggerID(root["trigger"]);
-						}
+				  	if (trig == UNDEFINED && root.containsKey("trigger"))
+				  	{
+							trig = getTriggerID(root["trigger"]);
+				  	}
 						commandCallback(meth, cid, val, trig);
 						handled = true;
 					}
@@ -327,10 +337,10 @@ bool SherlockedClass::parse(char * incomingMessage)
 					if(outputCallback)
 					{
 						int trig = getTriggerID(sender);
-						if (trig == UNDEFINED && root.containsKey("trigger"))
-						{
-								trig = getTriggerID(root["trigger"]);
-						}
+				  	if (trig == UNDEFINED && root.containsKey("trigger"))
+				  	{
+							trig = getTriggerID(root["trigger"]);
+				  	}
 						outputCallback(meth, numOutputs, ids, vals, trig);	
 						handled = true;
 					}
@@ -385,17 +395,17 @@ bool SherlockedClass::parse(char * incomingMessage)
 					char val[64];
 					strcpy(val, "");
 					if (root.containsKey("file"))
-				  	{
+				  {
 						const char* file = root["file"];
 						strcpy(val, file);
 					}
 					if(commandCallback)
 					{
 						int trig = getTriggerID(sender);
-						if (trig == UNDEFINED && root.containsKey("trigger"))
-						{
-								trig = getTriggerID(root["trigger"]);
-						}
+				  	if (trig == UNDEFINED && root.containsKey("trigger"))
+				  	{
+							trig = getTriggerID(root["trigger"]);
+				  	}
 						commandCallback(meth, cid, val, trig);
 						handled = true;
 					}
