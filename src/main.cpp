@@ -90,6 +90,8 @@ int long led_hole_fade_interval = 500;
 bool led_hole_begin = false; 
 bool led_hole_end = false; 
 bool led_rings_start = false;
+bool rings_move = false;
+bool arms_up = false; 
 RgbwColor black(0);
 int dutyCycle = 0; 
 
@@ -125,7 +127,7 @@ void DrawTailPixels()
 
 // the motor functions
 void motor_controller_arm_A_start_position(int start){
-  if (start == 1)
+  if (start == 1 && rings_move == false)
   {
     digitalWrite(motor_controller_arm_A_start_pin, HIGH);
     outValues[1] = 1;
@@ -174,7 +176,7 @@ void arm_A_solenoid_safety(int start){
 }
 
 void motor_controller_arm_B_start_position(int start){
-  if (start == 1)
+  if (start == 1 && rings_move == false)
   {
     digitalWrite(motor_controller_arm_B_start_pin, HIGH);
     outValues[5] = 1;
@@ -223,8 +225,9 @@ void arm_B_solenoid_safety(int start){
 }
 
 void motor_controller_rings_start(int start){
-  if (start == 1)
+  if (start == 1 && arms_up == true)
   {
+    rings_move = true; 
     digitalWrite(motor_controller_rings_start_pin, HIGH);
     outValues[9] = 1;
   } 
@@ -392,7 +395,6 @@ void outputStateMachine(int id, int value)
   }
 }
 
-
 // the publish function for ACE/mqtt
 void pubMsg(char msg[])
 {
@@ -496,22 +498,27 @@ int getInputValueByID(int id)
     }
   }
 }
-int getPosInArrayByValue(int value, int array_length, int array[]){
-  bool found_val = false;
-  int pos;
-  for (int i = 0; i < array_length; i++)
+int getOutputArrayIndexByID(int id)
+{
+  for (int i = 0; i < NUM_OUTPUTS; i++)
   {
-    if (value == array[i])
+    if (outIDs[i] == id)
     {
-      found_val = true;
-      pos = i;
+      return i;
     }
-    else if (!found_val){
-      pos = -1;
+  }
+  return UNDEFINED;
+}
+int getInputArrayIndexByID(int id)
+{
+  for (int i = 0; i < NUM_INPUTS; i++)
+  {
+    if (inIDs[i] == id)
+    {
+      return i;
     }
-  }    
-  return pos;      
-
+  }
+  return UNDEFINED;
 }
 
 // puzzle controller specific functions
@@ -649,28 +656,21 @@ void inputCallback(int meth, int numInputs, int ids[], int vals[], int trigger)
     // The get method only has ids; fill in the values with the values that correspond to the input ID
     if (numInputs > 0)
     {
-      int s_ids[numInputs];
-      int s_vals[numInputs];
-
+      int numOnBoard = 0;   // count the actual number on this board
+      int aids[numInputs]; // actual ids
+      int avals[numInputs]; // actual values
       for (int i = 0; i < numInputs; i++)
       {
-        Serial.print("ids[i]: ");
-        Serial.println(ids[i]);
-        // if ( ids[i] == inIDs[i])
-        // {
-          Serial.print("inIDs[i]: ");
-          Serial.println(ids[i]);
-          s_vals[i] = getInputValueByID(ids[i]);
-          s_ids[i] =  inIDs[i];
-          Serial.print("s_vals[i]: ");
-          Serial.println(s_vals[i]);
-          Serial.print("s_ids[i]: ");
-          Serial.println(s_ids[i]);
-        // }
+        int idx = getInputArrayIndexByID(ids[i]); // find the array index of the output id on this board
+        if (idx != UNDEFINED) // if found store it
+        {
+          aids[numOnBoard]  = inIDs[idx];
+          avals[numOnBoard] = inValues[idx];
+          numOnBoard++;
+        }
       }
-
-      char * msg = Sherlocked.sendInputs(numInputs, s_ids, s_vals, T_REQUEST);
-      pubMsg(msg);   
+      char * msg = Sherlocked.sendInputs(numOnBoard, aids, avals, T_REQUEST);
+      pubMsg(msg); 
     }
     else  // If no input id's are provided, feed them all back
     {
@@ -727,12 +727,21 @@ void outputCallback(int meth, int numOutputs, int ids[], int vals[], int trigger
     // The get method only has ids; fill in the values with the values that correspond to the output ID
     if (numOutputs > 0)
     {
+      int numOnBoard = 0;   // count the actual number on this board
+      int aids[numOutputs]; // actual ids
+      int avals[numOutputs]; // actual values
       for (int i = 0; i < numOutputs; i++)
       {
-        vals[i] = outValues[i]; // IS THIS WHERE I PUT MY OUTPUT STATE?
+        int idx = getOutputArrayIndexByID(ids[i]); // find the array index of the output id on this board
+        if (idx != UNDEFINED) // if found store it
+        {
+          aids[numOnBoard]  = outIDs[idx];
+          avals[numOnBoard] = outValues[idx];
+          numOnBoard++;
+        }
       }
-      pubMsg(Sherlocked.sendOutputs(numOutputs, ids, vals, T_REQUEST));
-    }
+      char * msg = Sherlocked.sendOutputs(numOnBoard, aids, avals, T_REQUEST);
+      pubMsg(msg);    }
     else  // If no output id's are provided, feed them all back
     {
       pubMsg(Sherlocked.sendOutputs(NUM_OUTPUTS, outIDs, outValues, T_REQUEST));
