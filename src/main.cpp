@@ -36,48 +36,42 @@ const int freq = 5000;
 const int ledChannel = 0;
 const int resolution = 12;
 
-//led ring 
-uint16_t loop_time = 1;         // the time it costs to loop over a ring
-uint16_t TailLength = 80;       // length of the tail, must be shorter than PixelCount
-uint16_t PixelCount = 720;      // make sure to set this to the number of pixels in your strip
-float MaxLightness = 0.2f;       // max lightness at the head of the tail (0.5f is full bright)
-float hue = 0.16667f;            // hue scales from 0.0f to 1.0f
-float saturation = 0.05f;         // saturation scales from 0.0f to 1.0f with 0.0f no saturation
-
-
-const uint16_t AnimCount = 1;           // we only need one
-const uint16_t timeScale = NEO_MILLISECONDS; // make sure it's set at milliseconds, although it is the default
-
-
 
 // PIN ASSIGNMENT
+// OUT
 const int motor_controller_arm_A_start_pin = 13;
 const int motor_controller_arm_A_end_pin = 14;
-const int motor_controller_arm_A_enable_pin = 15;
-const int arm_A_solenoid_safety_pin = 16;
-const int motor_controller_arm_B_start_pin = 32;
-const int motor_controller_arm_B_end_pin = 33;
-const int motor_controller_arm_B_enable_pin = 34;
-const int arm_B_solenoid_safety_pin = 35;
-const int motor_controller_rings_start_pin = 36;
-const int motor_controller_rings_enable_pin = 39;
-const int led_ring_1_pin = 2;
-const int led_ring_2_pin = 3;
-const int led_ring_3_pin = 4;
-const int led_hole_pin = 5;
+const int motor_controller_arm_A_pause_pin = 15;
+const int motor_controller_arm_A_enable_pin = 16;
+const int arm_A_solenoid_safety_pin = 32;
+const int motor_controller_arm_B_start_pin = 2;
+const int motor_controller_arm_B_end_pin = 3;
+const int motor_controller_arm_B_pause_pin = 4;
+const int motor_controller_arm_B_enable_pin = 5;
+const int arm_B_solenoid_safety_pin = 36;
+const int motor_controller_rings_start_pin = 34;
+const int motor_controller_rings_enable_pin = 35;
+const int motor_controller_rings_pause_pin = 36;
+const int led_hole_pin = 39;
+// IN
+const int inductive_sensor_A_top = 13;
+const int inductive_sensor_A_bottom = 14;
+const int motor_control_A_up = 15;
+const int motor_control_A_bottom = 16;
+const int motor_control_A_running = 32;
+const int inductive_sensor_B_top = 33;
+const int inductive_sensor_B_bottom = 34;
+const int motor_control_B_up = 35;
+const int motor_control_B_bottom = 36;
+const int motor_control_B_running = 39;
+const int motor_ring_running = 5;
+
 
 
 
 // SETUP LIBS
 WiFiClient ethclient;
 PubSubClient client(ethclient);
-NeoGamma<NeoGammaTableMethod> colorGamma; 
-NeoPixelBus<NeoGrbwFeature, NeoSk6812Method> ring1(PixelCount, led_ring_1_pin);
-NeoPixelBus<NeoGrbwFeature, NeoSk6812Method> ring2(PixelCount, led_ring_2_pin);
-NeoPixelBus<NeoGrbwFeature, NeoSk6812Method> ring3(PixelCount, led_ring_3_pin);
-// NeoPixel animation management object
-NeoPixelAnimator animations(AnimCount, timeScale ); 
-
 
 // variables 
 int outIDs[NUM_OUTPUTS];                    // array to store the id's of the outputs
@@ -89,311 +83,17 @@ unsigned long previousMicros = 0;
 int long led_hole_fade_interval = 500;
 bool led_hole_begin = false; 
 bool led_hole_end = false; 
-bool led_rings_start = false;
 bool rings_move = false;
-bool arms_up = false; 
-RgbwColor black(0);
+bool arm_A_up = false;
+bool arm_A_down = false;
+bool arm_A_moving = false;
+bool arm_B_up = false;
+bool arm_B_down= false;
+bool arm_B_moving = false;
+bool solenoid_A_extended = true; 
+bool solenoid_B_extended = true; 
 int dutyCycle = 0; 
 
-
-// CONTROLLER SPECIFIC FUNCTIONS
-
-// the led_ring functions
-void LoopAnimUpdate(const AnimationParam& param)
-{
-    // wait for this animation to complete,
-    // we are using it as a timer of sorts
-    if (param.state == AnimationState_Completed)
-    {
-        // done, time to restart this position tracking animation/timer
-        animations.RestartAnimation(param.index);
-
-        // rotate the complete strip one pixel to the right on every update
-        ring1.RotateRight(8);
-    }
-}
-void DrawTailPixels()
-{
-    // using Hsl as it makes it easy to pick from similiar saturated colors
-    // float hue = 1.0f;
-    for (uint16_t index = 0; index < ring1.PixelCount() && index <= TailLength; index++)
-    {
-        float lightness = index * MaxLightness / TailLength;
-        RgbwColor color = HslColor(hue, saturation, lightness);
-
-        ring1.SetPixelColor(index, colorGamma.Correct(color));
-    }
-}
-
-// the motor functions
-void motor_controller_arm_A_start_position(int start){
-  if (start == 1 && rings_move == false)
-  {
-    digitalWrite(motor_controller_arm_A_start_pin, HIGH);
-    outValues[1] = 1;
-  } 
-  else 
-  {
-    digitalWrite(motor_controller_arm_A_start_pin, LOW);
-    outValues[1] = 0;
-  }
-}
-void motor_controller_arm_A_end_position(int start){
-  if (start == 1)
-  {
-    digitalWrite(motor_controller_arm_A_end_pin, HIGH);
-    outValues[2] = 1;
-  } 
-  else 
-  {
-    digitalWrite(motor_controller_arm_A_end_pin, LOW);
-    outValues[2] = 0;
-  }
-}
-void motor_controller_arm_A_enable(int start){
-  if (start == 1)
-  {
-    digitalWrite(arm_A_solenoid_safety_pin, HIGH);
-    outValues[3] = 1;
-  } 
-  else 
-  {
-    digitalWrite(arm_A_solenoid_safety_pin, LOW);
-    outValues[3] = 0;
-  }  
-}
-void arm_A_solenoid_safety(int start){
-  if (start == 1)
-  {
-    digitalWrite(arm_A_solenoid_safety_pin, HIGH);
-    outValues[4] = 1;
-  } 
-  else 
-  {
-    digitalWrite(arm_A_solenoid_safety_pin, LOW);
-    outValues[4] = 0;
-  }    
-}
-
-void motor_controller_arm_B_start_position(int start){
-  if (start == 1 && rings_move == false)
-  {
-    digitalWrite(motor_controller_arm_B_start_pin, HIGH);
-    outValues[5] = 1;
-  } 
-  else 
-  {
-    digitalWrite(motor_controller_arm_B_start_pin, LOW);
-    outValues[5] = 0;
-  }
-}
-void motor_controller_arm_B_end_position(int start){
-  if (start == 1)
-  {
-    digitalWrite(motor_controller_arm_B_end_pin, HIGH);
-    outValues[6] = 1;
-  } 
-  else 
-  {
-    digitalWrite(motor_controller_arm_B_end_pin, LOW);
-    outValues[6] = 0;
-  }
-}
-void motor_controller_arm_B_enable(int start){
-  if (start == 1)
-  {
-    digitalWrite(motor_controller_arm_B_enable_pin, HIGH);
-    outValues[7] = 1;
-  } 
-  else 
-  {
-    digitalWrite(motor_controller_arm_B_enable_pin, LOW);
-    outValues[7] = 0;
-  }  
-}
-void arm_B_solenoid_safety(int start){
-  if (start == 1)
-  {
-    digitalWrite(arm_B_solenoid_safety_pin, HIGH);
-    outValues[8] = 1;
-  } 
-  else 
-  {
-    digitalWrite(arm_B_solenoid_safety_pin, LOW);
-    outValues[8] = 0;
-  }    
-}
-
-void motor_controller_rings_start(int start){
-  if (start == 1 && arms_up == true)
-  {
-    rings_move = true; 
-    digitalWrite(motor_controller_rings_start_pin, HIGH);
-    outValues[9] = 1;
-  } 
-  else 
-  {
-    digitalWrite(motor_controller_rings_start_pin, LOW);
-    outValues[9] = 0;
-  }
-}
-void motor_controller_rings_enable(int start){
-  if (start == 1)
-  {
-    digitalWrite(motor_controller_rings_enable_pin, HIGH);
-    outValues[10] = 1;
-  } 
-  else 
-  {
-    digitalWrite(motor_controller_rings_enable_pin, LOW);
-    outValues[10] = 0;
-  }  
-}
-
-// the ring led function
-void led_rings(int start){
-  Serial.print("start led_rings: ");
-  Serial.println(start);
-  if (start == 1)
-  {
-    led_rings_start = true;
-    outValues[11] = 1;
-    // Draw the tail that will be rotated through all the rest of the pixels
-    DrawTailPixels();    
-    animations.StartAnimation(0, loop_time, LoopAnimUpdate);    
-  } 
-  else 
-  {
-    led_rings_start = false;
-    animations.StopAnimation(0);
-    ring1.ClearTo(black);
-    ring1.Show();
-    outValues[11] = 0;
-  }    
-}
-void led_rings_brightness(int brightness){
-
-  outValues[12] = brightness;
-  MaxLightness = (float)brightness / (float)100;
-  dbf("led rings brightness: %f \n", MaxLightness);
-  animations.StopAnimation(0);
-  ring1.ClearTo(black);
-  DrawTailPixels();
-  animations.StartAnimation(0, loop_time, LoopAnimUpdate);
-}
-void led_rings_tail(int tail){
-  outValues[13] = tail;
-  TailLength = tail;
-  dbf("led rings tail: %i \n", TailLength);
-  animations.StopAnimation(0);
-  ring1.ClearTo(black);
-  DrawTailPixels();
-  animations.StartAnimation(0, loop_time, LoopAnimUpdate);
-}
-void led_rings_speed(int speed){
-  outValues[14] = speed;
-  loop_time = speed;
-  dbf("led rings speed: %i \n", loop_time);
-  animations.StopAnimation(0);
-  ring1.ClearTo(black);
-  DrawTailPixels();
-  animations.StartAnimation(0, loop_time, LoopAnimUpdate);
-}
-void led_rings_hue(int hue_val){
-  outValues[15] = hue_val;
-  hue = (float)hue_val / (float)100;
-  dbf("led rings hue: %f \n", hue);
-  animations.StopAnimation(0);
-  ring1.ClearTo(black);
-  DrawTailPixels();
-  animations.StartAnimation(0, loop_time, LoopAnimUpdate);
-}
-void led_rings_saturation(int sat_val){
-  outValues[16] = sat_val;
-  saturation = (float)sat_val / (float)100;
-  dbf("led rings saturation: %f \n", saturation);
-  animations.StopAnimation(0);
-  ring1.ClearTo(black);
-  DrawTailPixels();
-  animations.StartAnimation(0, loop_time, LoopAnimUpdate);
-}
-
-// the led hole function
-void led_hole(int start_end)
-{
-  // increase the LED brightness
-  if ( start_end == 1){
-    outValues[17] = 1;
-    Serial.println("set the led hole state start");
-    led_hole_end = false;
-    led_hole_begin = true;
-  }
-
-  // increase the LED brightness
-  if ( start_end == 0){
-    outValues[17] = 0;
-    Serial.println("set the led hole state end");
-    led_hole_begin = false;
-    led_hole_end = true;
-  }
-}
-
-// set the state depending on the output
-void outputStateMachine(int id, int value)
-{
-  Serial.printf("outputStateMachine received id: %i with value: %i\n", id, value);
-  if (id == 1 ){
-    motor_controller_arm_A_start_position(value);    
-  }
-  if (id == 2 ){
-    motor_controller_arm_A_end_position(value);
-  }
-  if (id == 3 ){
-    motor_controller_arm_A_enable(value);
-  }
-  if (id == 4 ){
-    arm_A_solenoid_safety(value);
-  }  
-  if (id == 5 ){
-    motor_controller_arm_B_start_position(value);
-  }
-  if (id == 6 ){
-    motor_controller_arm_B_end_position(value);
-  }
-  if (id == 7 ){
-    motor_controller_arm_B_enable(value);
-  }
-  if (id == 8 ){
-    arm_B_solenoid_safety(value);
-  }
-  if (id == 9 ){
-    motor_controller_rings_start(value);
-  }              
-  if (id == 10 ){
-    motor_controller_rings_enable(value);
-  }
-  if (id == 11 ){
-    led_rings(value);
-  }    
-  if (id == 12 ){
-    led_rings_brightness(value);
-  }  
-  if (id == 13 ){
-    led_rings_tail(value);
-  }   
-  if (id == 14 ){
-    led_rings_speed(value);
-  }   
-  if (id == 15 ){
-    led_rings_hue(value);
-  }  
-  if (id == 16 ){
-    led_rings_saturation(value);
-  }             
-  if (id == 17 ){
-    led_hole(value);
-  }
-}
 
 // the publish function for ACE/mqtt
 void pubMsg(char msg[])
@@ -439,6 +139,330 @@ void pubMsg_kb(const char * method, const char *param1, const char *val1, const 
   Serial.println(jsonMsg);
   client.publish(puzzle_topic, jsonMsg);
 }
+
+
+// CONTROLLER SPECIFIC FUNCTIONS
+
+// the motor functions
+void motor_controller_arm_A_start_position(int start){
+  if (start == 1 && rings_move == false && solenoid_A_extended == false)
+  {
+    digitalWrite(motor_controller_arm_A_start_pin, HIGH);
+    outValues[1] = 1;
+    arm_A_moving = true;
+  } 
+  else if (start == 1 && rings_move == true)
+  {
+      DynamicJsonBuffer  jsonBuffer(200);
+      JsonObject& root = jsonBuffer.createObject();
+      root["sender"] = hostname;
+      root["method"] = "info";
+      JsonArray& outputs = root.createNestedArray("outputs");
+      JsonObject& outid_val = outputs.createNestedObject();
+      outid_val["id"] = outIDs[1];
+      outid_val["value"] = outValues[1];
+      root["trigger"] = "rings still move";
+      char full_char[250];
+      root.prettyPrintTo(full_char, sizeof(full_char));
+      pubMsg(full_char);  
+  } 
+  else if (start == 1 && solenoid_A_extended == true)
+  {
+      DynamicJsonBuffer  jsonBuffer(200);
+      JsonObject& root = jsonBuffer.createObject();
+      root["sender"] = hostname;
+      root["method"] = "info";
+      JsonArray& outputs = root.createNestedArray("outputs");
+      JsonObject& outid_val = outputs.createNestedObject();
+      outid_val["id"] = outIDs[1];
+      outid_val["value"] = outValues[1];
+      root["trigger"] = "solenoid A still extended";
+      char full_char[250];
+      root.prettyPrintTo(full_char, sizeof(full_char));
+      pubMsg(full_char);  
+  }   
+  else if (start == 0)
+  {
+    digitalWrite(motor_controller_arm_A_start_pin, LOW);
+    outValues[1] = 0;
+  }
+}
+void motor_controller_arm_A_end_position(int start){
+  if (start == 1 && rings_move == false && solenoid_A_extended == false)
+  {
+    digitalWrite(motor_controller_arm_A_end_pin, HIGH);
+    outValues[2] = 1;
+  } 
+  else if (start == 1 && rings_move == true)
+  {
+      DynamicJsonBuffer  jsonBuffer(200);
+      JsonObject& root = jsonBuffer.createObject();
+      root["sender"] = hostname;
+      root["method"] = "info";
+      JsonArray& outputs = root.createNestedArray("outputs");
+      JsonObject& outid_val = outputs.createNestedObject();
+      outid_val["id"] = outIDs[1];
+      outid_val["value"] = outValues[1];
+      root["trigger"] = "rings still move";
+      char full_char[250];
+      root.prettyPrintTo(full_char, sizeof(full_char));
+      pubMsg(full_char);  
+  }   
+  else if (start == 1 && solenoid_A_extended == true)
+  {
+      DynamicJsonBuffer  jsonBuffer(200);
+      JsonObject& root = jsonBuffer.createObject();
+      root["sender"] = hostname;
+      root["method"] = "info";
+      JsonArray& outputs = root.createNestedArray("outputs");
+      JsonObject& outid_val = outputs.createNestedObject();
+      outid_val["id"] = outIDs[1];
+      outid_val["value"] = outValues[1];
+      root["trigger"] = "solenoid A still extended";
+      char full_char[250];
+      root.prettyPrintTo(full_char, sizeof(full_char));
+      pubMsg(full_char);  
+  }     
+  else if (start == 0)
+  {
+    digitalWrite(motor_controller_arm_A_end_pin, LOW);
+    outValues[2] = 0;
+  }
+}
+void motor_controller_arm_A_enable(int start){
+  if (start == 1)
+  {
+    digitalWrite(motor_controller_arm_A_enable_pin, HIGH);
+    outValues[3] = 1;
+  } 
+  else if (start == 0)
+  {
+    digitalWrite(motor_controller_arm_A_enable_pin, LOW);
+    outValues[3] = 0;
+  }  
+}
+void motor_controller_arm_A_pause(int start){
+  if (start == 1)
+  {
+    digitalWrite(motor_controller_arm_A_pause_pin, HIGH);
+    outValues[4] = 1;
+  } 
+  else if (start == 0)
+  {
+    digitalWrite(motor_controller_arm_A_pause_pin, LOW);
+    outValues[4] = 0;
+  }  
+}
+void arm_A_solenoid_safety(int start)
+{
+  if (start == 1 && arm_A_moving == false)
+  {
+    digitalWrite(arm_A_solenoid_safety_pin, HIGH);
+    outValues[5] = 1;
+    solenoid_A_extended = false; 
+  } 
+  if (start == 1 && arm_A_moving == true)
+  {
+      DynamicJsonBuffer  jsonBuffer(200);
+      JsonObject& root = jsonBuffer.createObject();
+      root["sender"] = hostname;
+      root["method"] = "info";
+      JsonArray& outputs = root.createNestedArray("outputs");
+      JsonObject& outid_val = outputs.createNestedObject();
+      outid_val["id"] = outIDs[4];
+      outid_val["value"] = outValues[4];
+      root["trigger"] = "arms moving";
+      char full_char[250];
+      root.prettyPrintTo(full_char, sizeof(full_char));
+      pubMsg(full_char);  
+  }
+
+  else if (start == 0)
+  {
+    digitalWrite(arm_A_solenoid_safety_pin, LOW);
+    outValues[5] = 0;
+    solenoid_A_extended = true;
+  }    
+}
+
+void motor_controller_arm_B_start_position(int start){
+  if (start == 1 && rings_move == false)
+  {
+    digitalWrite(motor_controller_arm_B_start_pin, HIGH);
+    outValues[6] = 1;
+  } 
+  else if (start == 0)
+  {
+    digitalWrite(motor_controller_arm_B_start_pin, LOW);
+    outValues[6] = 0;
+  }
+}
+void motor_controller_arm_B_end_position(int start){
+  if (start == 1)
+  {
+    digitalWrite(motor_controller_arm_B_end_pin, HIGH);
+    outValues[7] = 1;
+  } 
+  else if (start == 0)
+  {
+    digitalWrite(motor_controller_arm_B_end_pin, LOW);
+    outValues[7] = 0;
+  }
+}
+void motor_controller_arm_B_enable(int start){
+  if (start == 1)
+  {
+    digitalWrite(motor_controller_arm_B_enable_pin, HIGH);
+    outValues[8] = 1;
+  } 
+  else if (start == 0)
+  {
+    digitalWrite(motor_controller_arm_B_enable_pin, LOW);
+    outValues[8] = 0;
+  }  
+}
+void motor_controller_arm_B_pause(int start){
+  if (start == 1)
+  {
+    digitalWrite(motor_controller_arm_B_pause_pin, HIGH);
+    outValues[9] = 1;
+  } 
+  else if (start == 0)
+  {
+    digitalWrite(motor_controller_arm_B_pause_pin, LOW);
+    outValues[9] = 0;
+  }  
+}
+void arm_B_solenoid_safety(int start){
+  if (start == 1)
+  {
+    digitalWrite(arm_B_solenoid_safety_pin, HIGH);
+    outValues[10] = 1;
+  } 
+  else if (start == 0)
+  {
+    digitalWrite(arm_B_solenoid_safety_pin, LOW);
+    outValues[10] = 0;
+  }    
+}
+
+void motor_controller_rings_start(int start){
+  if (start == 1 && arm_A_up == true)
+  {
+    rings_move = true; 
+    digitalWrite(motor_controller_rings_start_pin, HIGH);
+    outValues[11] = 1;
+  } 
+  else if (start == 0)
+  {
+    digitalWrite(motor_controller_rings_start_pin, LOW);
+    outValues[11] = 0;
+  }
+}
+void motor_controller_rings_enable(int start){
+  if (start == 1)
+  {
+    digitalWrite(motor_controller_rings_enable_pin, HIGH);
+    outValues[12] = 1;
+  } 
+  else if (start == 0)
+  {
+    digitalWrite(motor_controller_rings_enable_pin, LOW);
+    outValues[12] = 0;
+  }  
+}
+void motor_controller_rings_pause(int start){
+  if (start == 1)
+  {
+    digitalWrite(motor_controller_rings_pause_pin, HIGH);
+    outValues[13] = 1;
+  } 
+  else if (start == 0)
+  {
+    digitalWrite(motor_controller_rings_pause_pin, LOW);
+    outValues[13] = 0;
+  }  
+}
+
+// the led hole function
+void led_hole(int start_end)
+{
+  // increase the LED brightness
+  if ( start_end == 1){
+    outValues[14] = 1;
+    Serial.println("set the led hole state start");
+    led_hole_end = false;
+    led_hole_begin = true;
+  }
+
+  // increase the LED brightness
+  if ( start_end == 0){
+    outValues[14] = 0;
+    Serial.println("set the led hole state end");
+    led_hole_begin = false;
+    led_hole_end = true;
+  }
+}
+
+// set the state depending on the output
+void outputStateMachine(int id, int value)
+{
+  Serial.printf("outputStateMachine received id: %i with value: %i\n", id, value);
+  if (id == 1 ){
+    motor_controller_arm_A_start_position(value);    
+  }
+  if (id == 2 ){
+    motor_controller_arm_A_end_position(value);
+  }
+  if (id == 3 ){
+    motor_controller_arm_A_enable(value);
+  }
+  if (id == 4 ){
+    motor_controller_arm_A_pause(value);
+  }
+  if (id == 5 ){  
+    arm_A_solenoid_safety(value);
+  }  
+  if (id == 6 ){
+    motor_controller_arm_B_start_position(value);
+  }
+  if (id == 7 ){
+    motor_controller_arm_B_end_position(value);
+  }
+  if (id == 8 ){
+    motor_controller_arm_B_enable(value);
+  }
+  if (id == 9 ){
+    motor_controller_arm_B_pause(value);
+  }  
+  if (id == 10 ){
+    arm_B_solenoid_safety(value);
+  }
+  if (id == 11 ){
+    motor_controller_rings_start(value);
+  }              
+  if (id == 12 ){
+    motor_controller_rings_enable(value);
+  }       
+  if (id == 13 ){
+    motor_controller_rings_pause(value);
+  }       
+  if (id == 14 ){
+    led_hole(value);
+  }
+}
+void inputStateMachine()
+{
+  // if (!digitalRead(test_in1))
+  // {
+  //   Serial.println("test_in1");
+  // }
+  // if (!digitalRead(test_in2))
+  // {
+  //   Serial.println("test_in2");
+  // }
+}
+
 
 // functions to set the in and outputs at the right starting position
 void setOutputsNum()
@@ -1086,12 +1110,10 @@ void setup() {
   ledcSetup(ledChannel, freq, resolution);
   ledcAttachPin(led_hole_pin, ledChannel);
 
-  ring1.Begin();
-  ring1.ClearTo(black);
-  ring1.Show();
-
   // we use the index 0 animation to time how often we rotate all the pixels
      
+  // pinMode(test_in1, INPUT_PULLUP);   
+  // pinMode(test_in2, INPUT_PULLUP);
 
   // start the ethernet client
   WiFi.onEvent(WiFiEvent);
@@ -1138,7 +1160,7 @@ void loop() {
   // setup for the non blocking functions
   unsigned long currentMicros = micros();
 
-  // Led animations 
+  inputStateMachine();
 
   // increase the LED HOLE brightness
   if ( led_hole_begin == true && dutyCycle <= 4096)
@@ -1171,11 +1193,4 @@ void loop() {
     } 
   }
   
-  // led ring animation start
-  if (led_rings_start == true){
-    // Serial.println("led_rings started");
-    animations.UpdateAnimations();
-    ring1.Show();
-  }  
-
 }
