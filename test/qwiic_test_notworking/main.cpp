@@ -5,13 +5,14 @@
 #include <ETH.h>
 #include <PubSubClient.h>
 #include <Sherlocked.h>
+#include <NeoPixelBus.h>
+#include <NeoPixelAnimator.h>
 #include <Wire.h>
-#include <SparkFun_TCA9534.h>
-
+#include "SparkFun_TCA9534.h"
 
 
 // Firmware version
-char firmware_version[] = "0.6";                                // now we support outputCallback M = M_Put!  
+char firmware_version[] = "0.5";                                // now we support outputCallback M = M_Put!  
 
 // SETTINGS
 
@@ -20,22 +21,21 @@ char hostname[] ="controller";                                  // the hostname 
 const char gen_topic[] = "alch";  
 const char puzzle_topic[] = "alch/centrepiece"; 
 const char module_topic[] = "alch/centrepiece/controller";      // the module name of the board <= REPLACE
-IPAddress server(192, 168, 3, 1);                           // ip address of the mqtt/ace server <= REPLACE
+IPAddress server(192, 168, 178, 214);                           // ip address of the mqtt/ace server <= REPLACE
 
 
 // controller settings
 
 //in- and outputs --- these needs to correspond to the document at https://docs.google.com/document/d/1GiCjMT_ph-NuIOsD4InIvT-H3MmUkSkzBZRMM1L5IsI/edit#heading=h.wqfd6v7o79qu
-#define NUM_OUTPUTS 17          // amount of outputs
+#define NUM_OUTPUTS 14          // amount of outputs
 #define START_OUTPUT 1          // the start number of the output
-#define NUM_INPUTS 4            // amount of inputs
+#define NUM_INPUTS 10            // amount of inputs
 #define START_INPUT 17          // the start number of the input
 
 //pwm 
 const int freq = 5000;
 const int ledChannel = 0;
 const int resolution = 12;
-
 
 
 // PIN ASSIGNMENT
@@ -69,11 +69,11 @@ const int motor_ring_running_pin = 5;
 
 
 
+
 // SETUP LIBS
 WiFiClient ethclient;
 PubSubClient client(ethclient);
 TCA9534 GPIO_1;
-
 
 // variables 
 int outIDs[NUM_OUTPUTS];                    // array to store the id's of the outputs
@@ -95,6 +95,7 @@ bool arm_B_moving = false;
 bool solenoid_A_extended = true; 
 bool solenoid_B_extended = true; 
 int dutyCycle = 0; 
+
 
 // the publish function for ACE/mqtt
 void pubMsg(char msg[])
@@ -141,22 +142,8 @@ void pubMsg_kb(const char * method, const char *param1, const char *val1, const 
   client.publish(puzzle_topic, jsonMsg);
 }
 
-void setOutput(int outID, int value)
-{
-    outValues[outID] = value;
-    DynamicJsonBuffer  jsonBuffer(200);
-    JsonObject& root = jsonBuffer.createObject();
-    root["sender"] = hostname;
-    root["method"] = "info";
-    JsonArray& outputs = root.createNestedArray("outputs");
-    JsonObject& outid_val = outputs.createNestedObject();
-    outid_val["id"] = outIDs[outID];
-    outid_val["value"] = outValues[outID];
-    root["trigger"] = "request";
-    char full_char[250];
-    root.prettyPrintTo(full_char, sizeof(full_char));
-    pubMsg(full_char);      
-}
+
+// CONTROLLER SPECIFIC FUNCTIONS
 
 // OUTPUT FUNCTIONS
 // the motor functions
@@ -363,47 +350,47 @@ void arm_B_solenoid_safety(int start){
 }
 
 void motor_controller_rings_start(int start){
-  // if (start == 1 && arm_A_up == true)
+//   if (start == 1 && arm_A_up == true)
   if (start == 1)
   {
     rings_move = true; 
-    GPIO_1.digitalWrite(motor_controller_rings_start_pin, HIGH);
-    setOutput(11, 1);
-    delay(5);
-    GPIO_1.digitalWrite(motor_controller_rings_start_pin, LOW);
-    setOutput(11, 0);
+    digitalWrite(motor_controller_rings_start_pin, HIGH);
+    outValues[11] = 1;
+    delay(1);
+    digitalWrite(motor_controller_rings_start_pin, LOW);
+    outValues[11] = 0;
   } 
   else if (start == 0)
   {
-    GPIO_1.digitalWrite(motor_controller_rings_start_pin, LOW);
-    setOutput(11, 0);
+    digitalWrite(motor_controller_rings_start_pin, LOW);
+    outValues[11] = 0;
   }
 }
 void motor_controller_rings_enable(int start){
   if (start == 1)
   {
-    GPIO_1.digitalWrite(motor_controller_rings_enable_pin, HIGH);
-    setOutput(12, 1);
+    digitalWrite(motor_controller_rings_enable_pin, HIGH);
+    outValues[12] = 1;
   } 
   else if (start == 0)
   {
-    GPIO_1.digitalWrite(motor_controller_rings_enable_pin, LOW);
-    setOutput(12, 0);
+    digitalWrite(motor_controller_rings_enable_pin, LOW);
+    outValues[12] = 0;
   }  
 }
 void motor_controller_rings_pause(int start){
   if (start == 1)
   {
-    GPIO_1.digitalWrite(motor_controller_rings_pause_pin, HIGH);
-    setOutput(13, 1);
-    delay(5);
-    GPIO_1.digitalWrite(motor_controller_rings_pause_pin, LOW);
-    setOutput(13, 0);    
+    digitalWrite(motor_controller_rings_pause_pin, HIGH);
+    outValues[13] = 1;
+    delay(1);
+    digitalWrite(motor_controller_rings_pause_pin, LOW);
+    outValues[13] = 0;    
   } 
   else if (start == 0)
   {
-    GPIO_1.digitalWrite(motor_controller_rings_pause_pin, LOW);
-    setOutput(13, 0);
+    digitalWrite(motor_controller_rings_pause_pin, LOW);
+    outValues[13] = 0;
   }  
 }
 
@@ -571,41 +558,20 @@ void inputStateMachine()
   }                
 }
 
+
 // functions to set the in and outputs at the right starting position
 void setOutputsNum()
 {
-  Serial.print("Outputs[value]: {");
   for(int i = 0; i < NUM_OUTPUTS; i++)
   {
     outIDs[i] = i+START_OUTPUT;
-    Serial.print(i+START_OUTPUT);
-    Serial.printf("[%i]", outValues[i]);    
-    if (i < NUM_OUTPUTS-1)
-    {    
-      Serial.print(", ");
-    }
-    if (i >= NUM_OUTPUTS-1)
-    {
-      Serial.println("}");
-    }
   }
 }
 void setInputsNum()
 {
-  Serial.print("Inputs: {");
   for(int i = 0; i < NUM_INPUTS; i++)
   {
     inIDs[i] = i+START_INPUT;
-    Serial.print(i+START_INPUT);
-    Serial.printf("[%i]", inValues[i]);
-    if (i < NUM_INPUTS-1)
-    {
-      Serial.print(", ");
-    }
-    if (i >= NUM_INPUTS-1)
-    {
-      Serial.println("}");
-    }    
   }
 }
 
@@ -1235,11 +1201,7 @@ void setup() {
   setOutputsNum();
   setInputsNum();
 
-  // pwm output setup for led_hole
-  ledcSetup(ledChannel, freq, resolution);
-  ledcAttachPin(led_hole_pin, ledChannel);
-
-  Wire.begin();
+  Wire.begin(0x27);
   if (GPIO_1.begin() == false) {
     Serial.println("Check Connections. No Qwiic GPIO detected.");
     while (1);
@@ -1248,6 +1210,20 @@ void setup() {
   GPIO_1.pinMode(motor_controller_rings_enable_pin, GPIO_OUT);  //Use GPIO_OUT and GPIO_IN instead of OUTPUT and INPUT_PULLUP
   GPIO_1.pinMode(motor_controller_rings_start_pin, GPIO_OUT);
   GPIO_1.pinMode(motor_controller_rings_pause_pin, GPIO_OUT);
+//   GPIO_1.pinMode(n1_pin4, GPIO_OUT);
+//   GPIO_1.pinMode(n2_pin1, GPIO_OUT);
+//   GPIO_1.pinMode(n2_pin2, GPIO_OUT);
+//   GPIO_1.pinMode(n2_pin3, GPIO_OUT);
+//   GPIO_1.pinMode(n2_pin4, GPIO_OUT);
+
+  // pwm output setup for led_hole
+  ledcSetup(ledChannel, freq, resolution);
+  ledcAttachPin(led_hole_pin, ledChannel);
+
+  // we use the index 0 animation to time how often we rotate all the pixels
+     
+  // pinMode(test_in1, INPUT_PULLUP);   
+  // pinMode(test_in2, INPUT_PULLUP);
 
   // start the ethernet client
   WiFi.onEvent(WiFiEvent);
@@ -1294,7 +1270,7 @@ void loop() {
   // setup for the non blocking functions
   unsigned long currentMicros = micros();
 
-  // Led animations 
+  inputStateMachine();
 
   // increase the LED HOLE brightness
   if ( led_hole_begin == true && dutyCycle <= 4096)

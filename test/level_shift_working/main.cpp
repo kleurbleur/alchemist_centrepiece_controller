@@ -1,7 +1,3 @@
-// ArduinoJson - arduinojson.org
-// Copyright Benoit Blanchon 2014-2018
-// MIT License
-
 #include <Arduino.h>
 
 #define out1 2
@@ -12,7 +8,6 @@
 const int del = 5000;
 
 void setup() {
-  // Initialize Serial port
   Serial.begin(115200);
   while (!Serial) continue;
 
