@@ -11,25 +11,19 @@
 #include <Wire.h>
 
 
-struct motorStruct {
-    uint8_t arm_A_start;                 
-    uint8_t arm_A_end;                   
-    uint8_t arm_A_pause;                 
-    uint8_t arm_A_enable;                
-    uint8_t arm_B_start;                 
-    uint8_t arm_B_end;                   
-    uint8_t arm_B_pause;                 
-    uint8_t arm_B_enable;                
-    uint8_t arm_rings_start;             
-    uint8_t arm_rings_enable;           
-    uint8_t arm_rings_pause;            
-    uint8_t arm_rings_continue;          
+        // data to be sent
+struct I2cTxStruct {
+    char textA[16];         // 16 bytes
+    uint16_t valA;          //  2
+    unsigned long valB;     //  4
+    byte padding[10];       // 10
+                            //------
+                            // 32
 };
 
-motorStruct motor = {0};
+I2cTxStruct txData = {"xxx", 236, 0};
 
 bool newTxData = false;
-bool test_if = false;
 
 
         // I2C control stuff
@@ -49,18 +43,14 @@ void updateDataToSend() {
     if (millis() - prevUpdateTime >= updateInterval) {
         prevUpdateTime = millis();
         if (newTxData == false) { // ensure previous message has been sent
-            if (!test_if)
-            {
-              motor.arm_A_enable = 1;  
-              motor.arm_B_enable = 1;            
-              test_if = true;
+
+            char sText[] = "SendA";
+            strcpy(txData.textA, sText);
+            txData.valA += 10;
+            if (txData.valA > 300) {
+                txData.valA = 236;
             }
-            else if (test_if)
-            {
-              motor.arm_A_enable = 0;  
-              motor.arm_B_enable = 0;            
-              test_if = false;
-            }          
+            txData.valB = millis();
             newTxData = true;
         }
     }
@@ -72,14 +62,16 @@ void transmitData() {
 
     if (newTxData == true) {
         Wire.beginTransmission(otherAddress);
-        Wire.write((byte*) &motor, sizeof(motor));
+        Wire.write((byte*) &txData, sizeof(txData));
         Wire.endTransmission();    // this is what actually sends the data
 
-        // for demo show the data that as been sent
+            // for demo show the data that as been sent
         Serial.print("Sent ");
-        Serial.print(motor.arm_A_enable);
+        Serial.print(txData.textA);
         Serial.print(' ');
-        Serial.print(motor.arm_B_enable);
+        Serial.print(txData.valA);
+        Serial.print(' ');
+        Serial.println(txData.valB);
 
         newTxData = false;
     }
