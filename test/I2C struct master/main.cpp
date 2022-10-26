@@ -46,7 +46,7 @@ const byte otherAddress = 9;
 
         // timing variables
 unsigned long prevUpdateTime = 0;
-unsigned long updateInterval = 500;
+unsigned long updateInterval = 5000;
 
 
 

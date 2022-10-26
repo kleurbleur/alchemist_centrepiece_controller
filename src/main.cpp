@@ -1,119 +1,92 @@
-//===================
-// Using I2C to send and receive structs between two Arduinos
-//   SDA is the data connection and SCL is the clock connection
-//   On an Uno  SDA is A4 and SCL is A5
-//   On an Mega SDA is 20 and SCL is 21
-//   GNDs must also be connected
-//===================
-
-
 #include <Arduino.h>
-#include <Wire.h>
+#include <Wire.h>           // Include the I2C library (required)
+#include <SparkFunSX1509.h> //Click here for the library: http://librarymanager/All#SparkFun_SX1509
 
 
-// data to be received needs to mirror what was sent from 
-struct motor {
-    uint8_t bottom;                 
-    uint8_t top;                   
-    uint8_t pause;                 
-    uint8_t enable;                
-};
-struct motorRing{
-    uint8_t start;             
-    uint8_t enable;           
-    uint8_t pause;            
-    uint8_t resume;          
-};
+// SX1509 I2C address (set by ADDR1 and ADDR0 (00 by default):
+const byte SX1509_ADDRESS = 0x3E; // SX1509 I2C address
+SX1509 io;                        // Create an SX1509 object to be used throughout
+// SX1509 pin definitions:
+const byte PIN_1 = 0; 
+const byte PIN_2 = 1; 
+const byte PIN_3 = 2; 
+const byte PIN_4 = 3; 
 
-struct controllerStruct{
-    motor armA;
-    motor armB;
-    motorRing rings;
-};
+const byte PIN_5 = 4; 
+const byte PIN_6 = 5; 
+const byte PIN_7 = 6; 
+const byte PIN_8 = 7; 
 
-controllerStruct controller = {0};
-
-
-bool newTxData = false;
-bool test_if = false;
-
-
-        // I2C control stuff
-
-const byte thisAddress = 8; // these need to be swapped for the other Arduino
-const byte otherAddress = 9;
-
-
-        // timing variables
-unsigned long prevUpdateTime = 0;
-unsigned long updateInterval = 500;
+const byte PIN_9 = 8; 
+const byte PIN_10 = 9; 
+const byte PIN_11 = 10; 
+const byte PIN_12 = 11; 
 
 
 
-void updateDataToSend() {
+void setup()
+{
+  Serial.begin(115200);
+  Serial.println("SX1509 Example");
 
-    if (millis() - prevUpdateTime >= updateInterval) {
-        prevUpdateTime = millis();
-        if (newTxData == false) { // ensure previous message has been sent
-            if (!test_if)
-            {
-              controller.armA.enable = 1;  
-              controller.armB.enable = 1;  
-              controller.rings.enable = 1;        
-              test_if = true;
-            }
-            else if (test_if)
-            {
-              controller.armA.enable = 0;  
-              controller.armB.enable = 0;  
-              controller.rings.enable = 0;        
-              test_if = false;
-            }          
-            newTxData = true;
-        }
-    }
-}
+  Wire.begin(5,13);
 
-//============
+  // Call io.begin(<address>) to initialize the SX1509. If it
+  // successfully communicates, it'll return 1.
+  if (io.begin(SX1509_ADDRESS) == false)
+  {
+    Serial.println("Failed to communicate. Check wiring and address of SX1509.");
+    while (1)
+      ; // If we fail to communicate, loop forever.
+  }
 
-void transmitData() {
-
-    if (newTxData == true) {
-        Wire.beginTransmission(otherAddress);
-        Wire.write((byte*) &controller, sizeof(controller));
-        Wire.endTransmission();    // this is what actually sends the data
-
-        // for demo show the data that as been sent
-        Serial.print("Sent ");
-        Serial.print(controller.armA.enable);
-        Serial.print(' ');
-        Serial.print(controller.armB.enable);
-        Serial.print(' ');
-        Serial.println(controller.rings.enable);
-
-        newTxData = false;
-    }
-}
-
-//=================================
-
-void setup() {
-    Serial.begin(115200);
-    Serial.println("\nStarting I2C Master demo\n");
-
-        // set up I2C
-    Wire.begin(16,13); // join i2c bus
+  // Call io.pinMode(<pin>, <mode>) to set an SX1509 pin as
+  // an output:
+  io.pinMode(PIN_1, OUTPUT);
+  io.pinMode(PIN_2, OUTPUT);
+  io.pinMode(PIN_3, OUTPUT);
+  io.pinMode(PIN_4, OUTPUT);
+  io.pinMode(PIN_5, OUTPUT);
+  io.pinMode(PIN_6, OUTPUT);
+  io.pinMode(PIN_7, OUTPUT);
+  io.pinMode(PIN_8, OUTPUT);
+  io.pinMode(PIN_9, OUTPUT);
+  io.pinMode(PIN_10, OUTPUT);
+  io.pinMode(PIN_11, OUTPUT);
+  io.pinMode(PIN_12, OUTPUT);    
 
 }
 
-//============
 
-void loop() {
+void loop()
+{
+  Serial.println("HIGH");
+  io.digitalWrite(PIN_1, HIGH);
+  io.digitalWrite(PIN_2, HIGH);
+  io.digitalWrite(PIN_3, HIGH);
+  io.digitalWrite(PIN_4, HIGH);
+  io.digitalWrite(PIN_5, HIGH);
+  io.digitalWrite(PIN_6, HIGH);
+  io.digitalWrite(PIN_7, HIGH);
+  io.digitalWrite(PIN_8, HIGH);
+  io.digitalWrite(PIN_9, HIGH);
+  io.digitalWrite(PIN_10, HIGH);
+  io.digitalWrite(PIN_11, HIGH);
+  io.digitalWrite(PIN_12, HIGH);    
+  delay(5000);   
+  Serial.println("LOW");                          // Delay half-a-second
+  io.digitalWrite(PIN_1, LOW);
+  io.digitalWrite(PIN_2, LOW); 
+  io.digitalWrite(PIN_3, LOW); 
+  io.digitalWrite(PIN_4, LOW); 
+  io.digitalWrite(PIN_5, LOW);
+  io.digitalWrite(PIN_6, LOW); 
+  io.digitalWrite(PIN_7, LOW); 
+  io.digitalWrite(PIN_8, LOW); 
+  io.digitalWrite(PIN_9, LOW);
+  io.digitalWrite(PIN_10, LOW); 
+  io.digitalWrite(PIN_11, LOW); 
+  io.digitalWrite(PIN_12, LOW);     
+  delay(5000);                           // Delay half-a-second
 
-        // this function updates the data in txData
-    updateDataToSend();
-        // this function sends the data if one is ready to be sent
-    transmitData();
 }
-
-//============
