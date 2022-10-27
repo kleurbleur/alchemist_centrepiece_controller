@@ -9,7 +9,7 @@
 #include <SparkFunSX1509.h>
 
 // Firmware version
-char firmware_version[] = "0.6";                                // We now have a io extender which has 5VDC outputs!
+char firmware_version[] = "0.7";                                // inputs with callbacks and debouncing!
 
 // SETTINGS
 
@@ -26,7 +26,7 @@ IPAddress server(192, 168, 178, 213);                           // ip address of
 //in- and outputs --- these needs to correspond to the document at https://docs.google.com/document/d/1GiCjMT_ph-NuIOsD4InIvT-H3MmUkSkzBZRMM1L5IsI/edit#heading=h.wqfd6v7o79qu
 #define NUM_OUTPUTS 17          // amount of outputs
 #define START_OUTPUT 1          // the start number of the output
-#define NUM_INPUTS 4            // amount of inputs
+#define NUM_INPUTS 8            // amount of inputs
 #define START_INPUT 17          // the start number of the input
 
 //pwm 
@@ -37,6 +37,8 @@ const int resolution = 12;
 // motor controllers
 const int motor_controller_on_off_delay = 5000;  // delay between the HIGH and LOW for the motor controllers in microseconds
 
+// input debounce time
+const int debounce_time = 10;
 
 // PIN ASSIGNMENT
 // OUT
@@ -57,15 +59,15 @@ const int motor_controller_rings_continue_pin = 3;//SX1509
 const int led_hole_pin = 39;                      //ESP32 io output (nog te solderen)
 // IN
 const int inductive_sensor_A_top_pin = 13;        // mod-io opto board
-const int inductive_sensor_A_bottom_pin = 14;     // mod-io opto board
+const int inductive_sensor_A_bottom_pin = 39;     // mod-io opto board
 const int motor_control_A_up_pin = 14;            // ESP32 interrupt input (nog te programmeren)
 const int motor_control_A_bottom_pin = 32;        // ESP32 interrupt input (nog te programmeren)
 const int inductive_sensor_B_top_pin = 33;        // mod-io opto board
 const int inductive_sensor_B_bottom_pin = 34;     // mod-io opto board
 const int motor_control_B_up_pin = 35;            // ESP32 interrupt input (nog te programmeren)
 const int motor_control_B_bottom_pin = 36;        // ESP32 interrupt input (nog te programmeren)
-const int motor_ring_running_pin = 2;             // ESP32 interrupt input (nog te programmeren)
-const int motor_ring_targer_reached_pin = 3;      // ESP32 interrupt input (nog te programmeren)
+const int motor_ring_running_pin = 3;             // ESP32 interrupt input (nog te programmeren)
+const int motor_ring_targer_reached_pin = 4;      // ESP32 interrupt input (nog te programmeren)
 
 
 
@@ -97,6 +99,8 @@ bool solenoid_A_extended = true;
 bool solenoid_B_extended = true; 
 int dutyCycle = 0; 
 unsigned long currentMicros;
+unsigned long currentDebounceMillis;
+unsigned long last_debounce_time = 0;
 
 // the publish function for ACE/mqtt
 void pubMsg(char msg[])
@@ -457,31 +461,39 @@ void inductive_sensor_A_top(int start){
 void inductive_sensor_A_bottom(int start){
   if (start == 1)
   {
+    Serial.printf("inductive_sensor_A_bottom %i", start);
     arm_A_down = true;
     inValues[2] = 1;
   } 
   else if (start == 0)
   {
+    Serial.printf("inductive_sensor_A_bottom %i", start);
     arm_A_down = false;
     inValues[2] = 0;
   }  
 }
 
 // helper function to check input and start the right function
-void inputCheckFunction(const int inputPin, void (*input_callback)(int))
+void inputCheckFunction(const int inputPin, const int id, void (*input_callback)(int))
 {
-  bool input = false;
-  if (digitalRead(inputPin) && input == false)
+    int valuePOS =  id - 1;
+    currentDebounceMillis = millis();
+    if (currentDebounceMillis - last_debounce_time > debounce_time)
     {
-      input = true;
-      dbf("input %i: 1", inputPin);
-      input_callback(1);
-    }else if (!digitalRead(inputPin) && input == false)
-    {
-      dbf("input %i: 0", inputPin);
-      input_callback(0);
-  }
-
+        if (digitalRead(inputPin) && inValues[valuePOS] == 0) // dit moet gelinkt worden aan de inputState
+        {
+            inValues[valuePOS] = 1;
+            // Serial.printf("input %i: 1\n", inputPin);
+            input_callback(1);
+        }
+        else if (!digitalRead(inputPin) && inValues[valuePOS] == 1)
+        {
+            inValues[valuePOS] = 0;
+            // Serial.printf("input %i: 0\n", inputPin);
+            input_callback(0);
+        }
+        last_debounce_time = currentDebounceMillis;  
+    }
 }
 
 // set the state depending on the output
@@ -541,12 +553,13 @@ void inputStateMachine()
   {
     inductive_sensor_A_top(0);
   }
-  inputCheckFunction(inductive_sensor_A_bottom_pin, &inductive_sensor_A_bottom);
+
+  inputCheckFunction(inductive_sensor_A_bottom_pin, 18, &inductive_sensor_A_bottom);
   
-  if (digitalRead(inductive_sensor_A_bottom_pin))
-  {
-    Serial.println("test_in2");
-  }
+//   if (digitalRead(inductive_sensor_A_bottom_pin))
+//   {
+//     Serial.println("test_in2");
+//   }
   if (digitalRead(motor_control_A_up_pin))
   {
     Serial.println("test_in2");
@@ -559,6 +572,7 @@ void inputStateMachine()
   {
     Serial.println("test_in2");
   }
+
   if (digitalRead(inductive_sensor_B_bottom_pin))
   {
     Serial.println("test_in2");
@@ -1262,6 +1276,11 @@ void setup() {
   io.pinMode(motor_controller_rings_pause_pin, OUTPUT);
   io.pinMode(motor_controller_rings_continue_pin, OUTPUT);
 
+  pinMode(inductive_sensor_A_top_pin, INPUT); // 36 t/m 39 heeft geen pullup -> dubbel testen
+  pinMode(inductive_sensor_B_bottom_pin, INPUT); // 36 t/m 39 heeft geen pullup -> dubbel testen
+
+  
+
   // start the ethernet client
   WiFi.onEvent(WiFiEvent);
   ETH.begin();
@@ -1307,8 +1326,10 @@ void loop() {
   // setup for the non blocking functions
   currentMicros = micros();
 
-  // Led animations 
+//   inputStateMachine();
+  inputCheckFunction(inductive_sensor_B_bottom_pin, 19, &inductive_sensor_A_bottom);
 
+  // Led animations 
   // increase the LED HOLE brightness
   if ( led_hole_begin == true && dutyCycle <= 4096)
   {
