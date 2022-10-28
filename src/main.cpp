@@ -1,4 +1,8 @@
-// the firmware for the pole sensor boards for the Alchemist Centrepiece 
+// ONGOING DEV: - completing the input structure,
+//                  x making up the helper function
+//                  x organizing the the inputs in an array or struct and maybe external file
+//                  - making an function for each input
+
 
 #include <Arduino.h>
 #include <SPI.h>
@@ -7,6 +11,7 @@
 #include <Sherlocked.h>
 #include <Wire.h>
 #include <SparkFunSX1509.h>
+#include <io_config.h>
 
 // Firmware version
 char firmware_version[] = "0.7";                                // inputs with callbacks and debouncing!
@@ -22,13 +27,6 @@ IPAddress server(192, 168, 178, 213);                           // ip address of
 
 
 // controller settings
-
-//in- and outputs --- these needs to correspond to the document at https://docs.google.com/document/d/1GiCjMT_ph-NuIOsD4InIvT-H3MmUkSkzBZRMM1L5IsI/edit#heading=h.wqfd6v7o79qu
-#define NUM_OUTPUTS 17          // amount of outputs
-#define START_OUTPUT 1          // the start number of the output
-#define NUM_INPUTS 8            // amount of inputs
-#define START_INPUT 17          // the start number of the input
-
 //pwm 
 const int freq = 5000;
 const int ledChannel = 0;
@@ -40,36 +38,6 @@ const int motor_controller_on_off_delay = 5000;  // delay between the HIGH and L
 // input debounce time
 const int debounce_time = 10;
 
-// PIN ASSIGNMENT
-// OUT
-const int motor_controller_arm_A_start_pin = 5;   //SX1509
-const int motor_controller_arm_A_end_pin = 6;     //SX1509
-const int motor_controller_arm_A_pause_pin = 7;   //SX1509
-const int motor_controller_arm_A_enable_pin = 4;  //SX1509
-const int arm_A_solenoid_safety_pin = 32;         //mod-io relay board
-const int motor_controller_arm_B_start_pin = 9;   //SX1509
-const int motor_controller_arm_B_end_pin = 10;    //SX1509
-const int motor_controller_arm_B_pause_pin = 11;  //SX1509
-const int motor_controller_arm_B_enable_pin = 8;  //SX1509
-const int arm_B_solenoid_safety_pin = 36;         //mod-io relay board
-const int motor_controller_rings_start_pin = 1;   //SX1509
-const int motor_controller_rings_enable_pin = 0;  //SX1509
-const int motor_controller_rings_pause_pin = 2;   //SX1509
-const int motor_controller_rings_continue_pin = 3;//SX1509
-const int led_hole_pin = 39;                      //ESP32 io output (nog te solderen)
-// IN
-const int inductive_sensor_A_top_pin = 13;        // mod-io opto board
-const int inductive_sensor_A_bottom_pin = 39;     // mod-io opto board
-const int motor_control_A_up_pin = 14;            // ESP32 interrupt input (nog te programmeren)
-const int motor_control_A_bottom_pin = 32;        // ESP32 interrupt input (nog te programmeren)
-const int inductive_sensor_B_top_pin = 33;        // mod-io opto board
-const int inductive_sensor_B_bottom_pin = 34;     // mod-io opto board
-const int motor_control_B_up_pin = 35;            // ESP32 interrupt input (nog te programmeren)
-const int motor_control_B_bottom_pin = 36;        // ESP32 interrupt input (nog te programmeren)
-const int motor_ring_running_pin = 3;             // ESP32 interrupt input (nog te programmeren)
-const int motor_ring_targer_reached_pin = 4;      // ESP32 interrupt input (nog te programmeren)
-
-
 
 // SETUP LIBS
 WiFiClient ethclient;
@@ -79,10 +47,6 @@ SX1509 io;
 
 
 // variables 
-int outIDs[NUM_OUTPUTS];                    // array to store the id's of the outputs
-int outValues[NUM_OUTPUTS] = {0};           // array to store the values of the outputs, initialized with all set to 0
-int inIDs[NUM_INPUTS];
-int inValues[NUM_INPUTS] = {0};
 static bool eth_connected = false;
 unsigned long previousMicros = 0;
 int long led_hole_fade_interval = 500;
@@ -426,7 +390,7 @@ void motor_controller_rings_pause(int start){
 }
 
 // the led hole function
-void led_hole(int start_end)
+void led_hole_clb(int start_end)
 {
   // increase the LED brightness
   if ( start_end == 1){
@@ -472,6 +436,14 @@ void inductive_sensor_A_bottom(int start){
     inValues[2] = 0;
   }  
 }
+  // inputCheckFunction(motor_control_A_up_pin, 19, &motor_control_A_up);
+  // inputCheckFunction(motor_control_A_bottom_pin, 19, &motor_control_A_bottom);  
+  // inputCheckFunction(inductive_sensor_B_top_pin, 19, &inductive_sensor_B_top);
+  // inputCheckFunction(inductive_sensor_B_bottom_pin, 19, &inductive_sensor_B_bottom);
+  // inputCheckFunction(motor_control_B_up_pin, 20, &motor_control_B_up);
+  // inputCheckFunction(motor_control_B_bottom_pin, 21, &motor_control_B_bottom);
+  // inputCheckFunction(motor_ring_running_pin, 22, &motor_ring_running);    
+
 
 // helper function to check input and start the right function
 void inputCheckFunction(const int inputPin, const int id, void (*input_callback)(int))
@@ -540,94 +512,25 @@ void outputStateMachine(int id, int value)
     motor_controller_rings_pause(value);
   }       
   if (id == 14 ){
-    led_hole(value);
+    led_hole_clb(value);
   }
 }
 void inputStateMachine()
 {
-  if (digitalRead(inductive_sensor_A_top_pin))
-  {
-    Serial.println("inductive_sensor_A_top_pin");
-    inductive_sensor_A_top(1);
-  }else if (!digitalRead(inductive_sensor_A_top_pin))
-  {
-    inductive_sensor_A_top(0);
-  }
 
+  inputCheckFunction(inductive_sensor_A_top_pin, 18, &inductive_sensor_A_top);
   inputCheckFunction(inductive_sensor_A_bottom_pin, 18, &inductive_sensor_A_bottom);
-  
-//   if (digitalRead(inductive_sensor_A_bottom_pin))
-//   {
-//     Serial.println("test_in2");
-//   }
-  if (digitalRead(motor_control_A_up_pin))
-  {
-    Serial.println("test_in2");
-  }
-  if (digitalRead(motor_control_A_bottom_pin))
-  {
-    Serial.println("test_in2");
-  }
-  if (digitalRead(inductive_sensor_B_top_pin))
-  {
-    Serial.println("test_in2");
-  }
-
-  if (digitalRead(inductive_sensor_B_bottom_pin))
-  {
-    Serial.println("test_in2");
-  }
-  if (digitalRead(motor_control_B_up_pin))
-  {
-    Serial.println("test_in2");
-  }
-  if (digitalRead(motor_control_B_bottom_pin))
-  {
-    Serial.println("test_in2");
-  }   
-  if (digitalRead(motor_ring_running_pin))
-  {
-    Serial.println("test_in2");
-  }                
+  // inputCheckFunction(motor_control_A_up_pin, 19, &motor_control_A_up);
+  // inputCheckFunction(motor_control_A_bottom_pin, 19, &motor_control_A_bottom);  
+  // inputCheckFunction(inductive_sensor_B_top_pin, 19, &inductive_sensor_B_top);
+  // inputCheckFunction(inductive_sensor_B_bottom_pin, 19, &inductive_sensor_B_bottom);
+  // inputCheckFunction(motor_control_B_up_pin, 20, &motor_control_B_up);
+  // inputCheckFunction(motor_control_B_bottom_pin, 21, &motor_control_B_bottom);
+  // inputCheckFunction(motor_ring_running_pin, 22, &motor_ring_running);           
 }
 
 // functions to set the in and outputs at the right starting position
-void setOutputsNum()
-{
-  Serial.print("Outputs[value]: {");
-  for(int i = 0; i < NUM_OUTPUTS; i++)
-  {
-    outIDs[i] = i+START_OUTPUT;
-    Serial.print(i+START_OUTPUT);
-    Serial.printf("[%i]", outValues[i]);    
-    if (i < NUM_OUTPUTS-1)
-    {    
-      Serial.print(", ");
-    }
-    if (i >= NUM_OUTPUTS-1)
-    {
-      Serial.println("}");
-    }
-  }
-}
-void setInputsNum()
-{
-  Serial.print("Inputs: {");
-  for(int i = 0; i < NUM_INPUTS; i++)
-  {
-    inIDs[i] = i+START_INPUT;
-    Serial.print(i+START_INPUT);
-    Serial.printf("[%i]", inValues[i]);
-    if (i < NUM_INPUTS-1)
-    {
-      Serial.print(", ");
-    }
-    if (i >= NUM_INPUTS-1)
-    {
-      Serial.println("}");
-    }    
-  }
-}
+
 
 // functions to send all out- and inputs
 void sendAllOutputs()
@@ -651,26 +554,26 @@ char * getAllInputs()
   return(msg);
 }
 // helper functions for getting the right value for the right id
-int getOutputValueByID(int id)
-{
-  for(int i = 0; i < NUM_OUTPUTS; i++)
-  {
-    if(outIDs[i] == id)
-    {
-      return outValues[i];
-    }
-  }
-}
-int getInputValueByID(int id)
-{
-  for(int i = 0; i < NUM_INPUTS; i++)
-  {
-    if(inIDs[i] == id)
-    {
-      return inValues[i];
-    }
-  }
-}
+// int getOutputValueByID(int id)
+// {
+//   for(int i = 0; i < NUM_OUTPUTS; i++)
+//   {
+//     if(outIDs[i] == id)
+//     {
+//       return outValues[i];
+//     }
+//   }
+// }
+// int getInputValueByID(int id)
+// {
+//   for(int i = 0; i < NUM_INPUTS; i++)
+//   {
+//     if(inIDs[i] == id)
+//     {
+//       return inValues[i];
+//     }
+//   }
+// }
 int getOutputArrayIndexByID(int id)
 {
   for (int i = 0; i < NUM_OUTPUTS; i++)
@@ -1326,8 +1229,7 @@ void loop() {
   // setup for the non blocking functions
   currentMicros = micros();
 
-//   inputStateMachine();
-  inputCheckFunction(inductive_sensor_B_bottom_pin, 19, &inductive_sensor_A_bottom);
+  inputStateMachine();
 
   // Led animations 
   // increase the LED HOLE brightness
