@@ -11,7 +11,7 @@
 #include <Sherlocked.h>
 #include <Wire.h>
 #include <SparkFunSX1509.h>
-#include <io_config.h>
+// #include <io_config.h>
 
 // Firmware version
 char firmware_version[] = "0.7";                                // inputs with callbacks and debouncing!
@@ -39,6 +39,122 @@ const int motor_controller_on_off_delay = 5000;  // delay between the HIGH and L
 const int debounce_time = 10;
 
 
+// PIN ASSIGNMENT
+// OUT
+#define motor_controller_arm_A_start_pin 5      //SX1509
+#define  motor_controller_arm_A_end_pin 6       //SX1509
+#define motor_controller_arm_A_pause_pin 7      //SX1509
+#define motor_controller_arm_A_enable_pin 4     //SX1509
+#define arm_A_solenoid_safety_pin 32            //mod-io relay board
+#define motor_controller_arm_B_start_pin 9      //SX1509
+#define motor_controller_arm_B_end_pin 10       //SX1509
+#define motor_controller_arm_B_pause_pin 11     //SX1509
+#define motor_controller_arm_B_enable_pin 8     //SX1509
+#define arm_B_solenoid_safety_pin 36            //mod-io relay board
+#define motor_controller_rings_start_pin 1      //SX1509
+#define motor_controller_rings_enable_pin 0     //SX1509
+#define motor_controller_rings_pause_pin 2      //SX1509
+#define motor_controller_rings_resume_pin 3     //SX1509
+#define led_hole_pin 39                         //ESP32 io output (nog te solderen)
+// IN
+#define inductive_sensor_A_top_pin 13           // mod-io opto board
+#define inductive_sensor_A_bottom_pin 39        // mod-io opto board
+#define motor_control_A_up_pin 14               // ESP32 interrupt input (nog te programmeren)
+#define motor_control_A_bottom_pin 32           // ESP32 interrupt input (nog te programmeren)
+#define inductive_sensor_B_top_pin 33           // mod-io opto board
+#define inductive_sensor_B_bottom_pin 34        // mod-io opto board
+#define motor_control_B_up_pin 35               // ESP32 interrupt input (nog te programmeren)
+#define motor_control_B_bottom_pin 36           // ESP32 interrupt input (nog te programmeren)
+#define motor_ring_running_pin 3                // ESP32 interrupt input (nog te programmeren)
+#define motor_ring_targer_reached_pin 4         // ESP32 interrupt input (nog te programmeren)
+
+
+
+//in- and outputs --- these needs to correspond to the document at https://docs.google.com/document/d/1GiCjMT_ph-NuIOsD4InIvT-H3MmUkSkzBZRMM1L5IsI/edit#heading=h.wqfd6v7o79qu
+#define NUM_OUTPUTS 9          // amount of outputs
+#define START_OUTPUT 1          // the start number of the output
+#define NUM_INPUTS 10            // amount of inputs
+#define START_INPUT 17          // the start number of the input
+
+
+// naming the IDs and values
+// these names are now numbered and can be used when calling an array numbers. Instead of inIDs[2] now inIDs[arm_A_controller_top]
+enum inputs{
+  TOP_SENSOR_CONTROLLER_ARM_A,
+  BOTTOM_SENSOR_CONTROLLER_ARM_A,
+  TOP_CONTROLLER_ARM_A,
+  MOVING_CONTROLLER_ARM_A,
+  BOTTOM_CONTROLLER_ARM_A,
+  TOP_SENSOR_CONTROLLER_ARM_B,
+  BOTTOM_SENSOR_CONTROLLER_ARM_B,
+  TOP_CONTROLLER_ARM_B,
+  MOVING_CONTROLLER_ARM_B,
+  BOTTOM_CONTROLLER_ARM_B,
+  MOVING_CONTROLLER_RINGS,
+  TARGET_REACHED_CONTROLLER_RINGS
+};
+enum outputs{
+  TOP_CONTROLLER_ARMS,
+  BOTTOM_CONTROLLER_ARMS,
+  ENABLE_CONTROLLER_ARMS,
+  PAUSE_CONTROLLER_ARMS,
+  SOLENOID_CONTROLLER_ARMS,
+  START_CONTROLLER_RINGS,
+  ENABLE_CONTROLLER_RINGS,
+  PAUSE_CONTROLLER_RINGS,
+  RESUME_CONTROLLER_RINGS,
+  LED_HOLE
+};
+
+
+
+// and here we create the id and the value arrays which are callable by e.g. outIDs[led_hole] (which is 15)
+int outIDs[NUM_OUTPUTS];
+int outValues[NUM_OUTPUTS] = {0};
+int inIDs[NUM_INPUTS];
+int inValues[NUM_INPUTS] = {0};
+
+
+
+// and two helper functions to set the id's of the out- and inputs.
+void setOutputsNum()
+{
+  Serial.print("Outputs[value]: {");
+  for(int i = 0; i < NUM_OUTPUTS; i++)
+  {
+    outIDs[i] = i+START_OUTPUT;
+    Serial.print(i+START_OUTPUT);
+    Serial.printf("[%i]", outValues[i]);    
+    if (i < NUM_OUTPUTS-1)
+    {    
+      Serial.print(", ");
+    }
+    if (i >= NUM_OUTPUTS-1)
+    {
+      Serial.println("}");
+    }
+  }
+}
+void setInputsNum()
+{
+  Serial.print("Inputs: {");
+  for(int i = 0; i < NUM_INPUTS; i++)
+  {
+    inIDs[i] = i+START_INPUT;
+    Serial.print(i+START_INPUT);
+    Serial.printf("[%i]", inValues[i]);
+    if (i < NUM_INPUTS-1)
+    {
+      Serial.print(", ");
+    }
+    if (i >= NUM_INPUTS-1)
+    {
+      Serial.println("}");
+    }    
+  }
+}
+
+
 // SETUP LIBS
 WiFiClient ethclient;
 PubSubClient client(ethclient);
@@ -55,10 +171,10 @@ bool led_hole_end = false;
 bool rings_move = false;
 bool arm_A_up = false;
 bool arm_A_down = false;
-bool arm_A_moving = false;
 bool arm_B_up = false;
 bool arm_B_down= false;
 bool arm_B_moving = false;
+bool arms_moving = false;
 bool solenoid_A_extended = true; 
 bool solenoid_B_extended = true; 
 int dutyCycle = 0; 
@@ -136,12 +252,12 @@ void setOutputWithMessage(int outID, int value, const char* request)
 
 // OUTPUT FUNCTIONS
 // the motor functions
-void motor_controller_arm_A_start_position(int start){
+void motor_controller_arms_top_position(int start){
   if (start == 1 && rings_move == false && solenoid_A_extended == false)
   {
     digitalWrite(motor_controller_arm_A_start_pin, HIGH);
+    digitalWrite(motor_controller_arm_B_start_pin, HIGH);
     outValues[1] = 1;
-    arm_A_moving = true;
   } 
   else if (start == 1 && rings_move == true)
   {
@@ -179,7 +295,7 @@ void motor_controller_arm_A_start_position(int start){
     outValues[1] = 0;
   }
 }
-void motor_controller_arm_A_end_position(int start){
+void motor_controller_arms_bottom_position(int start){
   if (start == 1 && rings_move == false && solenoid_A_extended == false)
   {
     digitalWrite(motor_controller_arm_A_end_pin, HIGH);
@@ -221,7 +337,7 @@ void motor_controller_arm_A_end_position(int start){
     outValues[2] = 0;
   }
 }
-void motor_controller_arm_A_enable(int start){
+void motor_controller_arms_enable(int start){
   if (start == 1)
   {
     digitalWrite(motor_controller_arm_A_enable_pin, HIGH);
@@ -233,7 +349,7 @@ void motor_controller_arm_A_enable(int start){
     outValues[3] = 0;
   }  
 }
-void motor_controller_arm_A_pause(int start){
+void motor_controller_arms_pause(int start){
   if (start == 1)
   {
     digitalWrite(motor_controller_arm_A_pause_pin, HIGH);
@@ -245,15 +361,15 @@ void motor_controller_arm_A_pause(int start){
     outValues[4] = 0;
   }  
 }
-void arm_A_solenoid_safety(int start)
+void arms_solenoid_safety(int start)
 {
-  if (start == 1 && arm_A_moving == false)
+  if (start == 1 && arms_moving == false)
   {
     digitalWrite(arm_A_solenoid_safety_pin, HIGH);
     outValues[5] = 1;
     solenoid_A_extended = false; 
   } 
-  if (start == 1 && arm_A_moving == true)
+  if (start == 1 && arms_moving == true)
   {
       DynamicJsonBuffer  jsonBuffer(200);
       JsonObject& root = jsonBuffer.createObject();
@@ -277,66 +393,66 @@ void arm_A_solenoid_safety(int start)
   }    
 }
 
-void motor_controller_arm_B_start_position(int start){
-  if (start == 1 && rings_move == false)
-  {
-    digitalWrite(motor_controller_arm_B_start_pin, HIGH);
-    outValues[6] = 1;
-  } 
-  else if (start == 0)
-  {
-    digitalWrite(motor_controller_arm_B_start_pin, LOW);
-    outValues[6] = 0;
-  }
-}
-void motor_controller_arm_B_end_position(int start){
-  if (start == 1)
-  {
-    digitalWrite(motor_controller_arm_B_end_pin, HIGH);
-    outValues[7] = 1;
-  } 
-  else if (start == 0)
-  {
-    digitalWrite(motor_controller_arm_B_end_pin, LOW);
-    outValues[7] = 0;
-  }
-}
-void motor_controller_arm_B_enable(int start){
-  if (start == 1)
-  {
-    digitalWrite(motor_controller_arm_B_enable_pin, HIGH);
-    outValues[8] = 1;
-  } 
-  else if (start == 0)
-  {
-    digitalWrite(motor_controller_arm_B_enable_pin, LOW);
-    outValues[8] = 0;
-  }  
-}
-void motor_controller_arm_B_pause(int start){
-  if (start == 1)
-  {
-    digitalWrite(motor_controller_arm_B_pause_pin, HIGH);
-    outValues[9] = 1;
-  } 
-  else if (start == 0)
-  {
-    digitalWrite(motor_controller_arm_B_pause_pin, LOW);
-    outValues[9] = 0;
-  }  
-}
-void arm_B_solenoid_safety(int start){
-  if (start == 1)
-  {
-    digitalWrite(arm_B_solenoid_safety_pin, HIGH);
-    outValues[10] = 1;
-  } 
-  else if (start == 0)
-  {
-    digitalWrite(arm_B_solenoid_safety_pin, LOW);
-    outValues[10] = 0;
-  }    
-}
+// void motor_controller_arm_B_start_position(int start){
+//   if (start == 1 && rings_move == false)
+//   {
+//     digitalWrite(motor_controller_arm_B_start_pin, HIGH);
+//     outValues[6] = 1;
+//   } 
+//   else if (start == 0)
+//   {
+//     digitalWrite(motor_controller_arm_B_start_pin, LOW);
+//     outValues[6] = 0;
+//   }
+// }
+// void motor_controller_arm_B_end_position(int start){
+//   if (start == 1)
+//   {
+//     digitalWrite(motor_controller_arm_B_end_pin, HIGH);
+//     outValues[7] = 1;
+//   } 
+//   else if (start == 0)
+//   {
+//     digitalWrite(motor_controller_arm_B_end_pin, LOW);
+//     outValues[7] = 0;
+//   }
+// }
+// void motor_controller_arm_B_enable(int start){
+//   if (start == 1)
+//   {
+//     digitalWrite(motor_controller_arm_B_enable_pin, HIGH);
+//     outValues[8] = 1;
+//   } 
+//   else if (start == 0)
+//   {
+//     digitalWrite(motor_controller_arm_B_enable_pin, LOW);
+//     outValues[8] = 0;
+//   }  
+// }
+// void motor_controller_arm_B_pause(int start){
+//   if (start == 1)
+//   {
+//     digitalWrite(motor_controller_arm_B_pause_pin, HIGH);
+//     outValues[9] = 1;
+//   } 
+//   else if (start == 0)
+//   {
+//     digitalWrite(motor_controller_arm_B_pause_pin, LOW);
+//     outValues[9] = 0;
+//   }  
+// }
+// void arm_B_solenoid_safety(int start){
+//   if (start == 1)
+//   {
+//     digitalWrite(arm_B_solenoid_safety_pin, HIGH);
+//     outValues[10] = 1;
+//   } 
+//   else if (start == 0)
+//   {
+//     digitalWrite(arm_B_solenoid_safety_pin, LOW);
+//     outValues[10] = 0;
+//   }    
+// }
 
 void motor_controller_rings_start(int start){
   // if (start == 1 && arm_A_up == true)
@@ -388,7 +504,24 @@ void motor_controller_rings_pause(int start){
     setOutput(13, 0);
   }  
 }
-
+void motor_controler_rings_resume(int start){
+  if (start == 1)
+  {
+    io.digitalWrite(motor_controller_rings_resume_pin, HIGH);
+    setOutputWithMessage(13, 1, "timer");    
+    if (currentMicros - previousMicros >= motor_controller_on_off_delay)
+    {
+      previousMicros = currentMicros;
+      io.digitalWrite(motor_controller_rings_resume_pin, LOW);
+    }
+    setOutput(13, 0);
+  } 
+  else if (start == 0)
+  {
+    io.digitalWrite(motor_controller_rings_resume_pin, LOW);
+    setOutput(13, 0);
+  }    
+}
 // the led hole function
 void led_hole_clb(int start_end)
 {
@@ -472,46 +605,33 @@ void inputCheckFunction(const int inputPin, const int id, void (*input_callback)
 void outputStateMachine(int id, int value)
 {
   dbf("outputStateMachine received id: %i with value: %i\n", id, value);
-  if (id == 1 ){
-    motor_controller_arm_A_start_position(value);    
+  if (id == TOP_CONTROLLER_ARMS ){
+    motor_controller_arms_top_position(value);    
   }
-  if (id == 2 ){
-    motor_controller_arm_A_end_position(value);
+  if (id == BOTTOM_CONTROLLER_ARMS ){
+    motor_controller_arms_bottom_position(value);
   }
-  if (id == 3 ){
-    motor_controller_arm_A_enable(value);
+  if (id == ENABLE_CONTROLLER_ARMS ){
+    motor_controller_arms_enable(value);
   }
-  if (id == 4 ){
-    motor_controller_arm_A_pause(value);
+  if (id == PAUSE_CONTROLLER_ARMS ){
+    motor_controller_arms_pause(value);
   }
-  if (id == 5 ){  
-    arm_A_solenoid_safety(value);
+  if (id == SOLENOID_CONTROLLER_ARMS ){  
+    arms_solenoid_safety(value);
   }  
-  if (id == 6 ){
-    motor_controller_arm_B_start_position(value);
-  }
-  if (id == 7 ){
-    motor_controller_arm_B_end_position(value);
-  }
-  if (id == 8 ){
-    motor_controller_arm_B_enable(value);
-  }
-  if (id == 9 ){
-    motor_controller_arm_B_pause(value);
-  }  
-  if (id == 10 ){
-    arm_B_solenoid_safety(value);
-  }
-  if (id == 11 ){
+  if (id == START_CONTROLLER_RINGS ){
     motor_controller_rings_start(value);
-  }              
-  if (id == 12 ){
+  }
+  if (id == ENABLE_CONTROLLER_RINGS ){
     motor_controller_rings_enable(value);
-  }       
-  if (id == 13 ){
+  }
+  if (id == PAUSE_CONTROLLER_RINGS ){
     motor_controller_rings_pause(value);
-  }       
-  if (id == 14 ){
+  }
+  if (id == RESUME_CONTROLLER_RINGS ){
+  }  
+  if (id == LED_HOLE ){
     led_hole_clb(value);
   }
 }
@@ -1177,7 +1297,7 @@ void setup() {
   io.pinMode(motor_controller_rings_enable_pin, OUTPUT);  //Use io_OUT and io_IN instead of OUTPUT and INPUT_PULLUP
   io.pinMode(motor_controller_rings_start_pin, OUTPUT);
   io.pinMode(motor_controller_rings_pause_pin, OUTPUT);
-  io.pinMode(motor_controller_rings_continue_pin, OUTPUT);
+  io.pinMode(motor_controller_rings_resume_pin, OUTPUT);
 
   pinMode(inductive_sensor_A_top_pin, INPUT); // 36 t/m 39 heeft geen pullup -> dubbel testen
   pinMode(inductive_sensor_B_bottom_pin, INPUT); // 36 t/m 39 heeft geen pullup -> dubbel testen
