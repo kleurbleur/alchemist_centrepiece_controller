@@ -6,7 +6,7 @@
 // PIN ASSIGNMENT
 // OUT
 #define motor_controller_arm_A_start_pin 5      //SX1509
-#define  motor_controller_arm_A_end_pin 6       //SX1509
+#define motor_controller_arm_A_end_pin 6       //SX1509
 #define motor_controller_arm_A_pause_pin 7      //SX1509
 #define motor_controller_arm_A_enable_pin 4     //SX1509
 #define arm_A_solenoid_safety_pin 32            //mod-io relay board

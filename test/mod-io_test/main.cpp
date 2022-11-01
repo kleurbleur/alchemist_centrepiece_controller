@@ -34,23 +34,23 @@ void loop () {
 //Relays turning on and off. Note that the relays require external power supply
 //provided to the PWR_J of the MOD-IO board
 
-  // modio.setRelay(RELAY1, 1);
-  // delay(PERIOD);
-  // modio.setRelay(RELAY1, 0);
+  modio.setRelay(RELAY1, 1);
+  delay(PERIOD);
+  modio.setRelay(RELAY1, 0);
   
-  // modio.setRelay(RELAY2, 1);
-  // delay(PERIOD);
-  // modio.setRelay(RELAY2, 0);
+  modio.setRelay(RELAY2, 1);
+  delay(PERIOD);
+  modio.setRelay(RELAY2, 0);
   
-  // modio.setRelay(RELAY3, 1);
-  // delay(PERIOD);
-  // modio.setRelay(RELAY3, 0);
+  modio.setRelay(RELAY3, 1);
+  delay(PERIOD);
+  modio.setRelay(RELAY3, 0);
   
-  // modio.setRelay(RELAY4, 1);
-  // delay(PERIOD);
-  // modio.setRelay(RELAY4, 0);
+  modio.setRelay(RELAY4, 1);
+  delay(PERIOD);
+  modio.setRelay(RELAY4, 0);
   
-  // delay(2000);
+  delay(2000);
 
 //Reads and prints the digital inputs 
 
