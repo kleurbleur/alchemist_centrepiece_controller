@@ -34,41 +34,42 @@ void loop () {
 //Relays turning on and off. Note that the relays require external power supply
 //provided to the PWR_J of the MOD-IO board
 
-  modio.setRelay(RELAY1, 1);
-  delay(PERIOD);
-  modio.setRelay(RELAY1, 0);
+  // modio.setRelay(RELAY1, 1);
+  // delay(PERIOD);
+  // modio.setRelay(RELAY1, 0);
   
-  modio.setRelay(RELAY2, 1);
-  delay(PERIOD);
-  modio.setRelay(RELAY2, 0);
+  // modio.setRelay(RELAY2, 1);
+  // delay(PERIOD);
+  // modio.setRelay(RELAY2, 0);
   
-  modio.setRelay(RELAY3, 1);
-  delay(PERIOD);
-  modio.setRelay(RELAY3, 0);
+  // modio.setRelay(RELAY3, 1);
+  // delay(PERIOD);
+  // modio.setRelay(RELAY3, 0);
   
-  modio.setRelay(RELAY4, 1);
-  delay(PERIOD);
-  modio.setRelay(RELAY4, 0);
+  // modio.setRelay(RELAY4, 1);
+  // delay(PERIOD);
+  // modio.setRelay(RELAY4, 0);
   
-  delay(2000);
+  // delay(2000);
 
 //Reads and prints the digital inputs 
 
   val = modio.digitalReadAll();
   Serial.print("digital Inputs: ");
   Serial.println(val);
-  val4 = modio.digitalRead(4);
-  Serial.print("digital Input 4: ");
-  Serial.println(val4);
-  val3 = modio.digitalRead(3);
-  Serial.print("digital Input 3: ");
-  Serial.println(val3);
-  val2 = modio.digitalRead(2);
-  Serial.print("digital Input 2: ");
-  Serial.println(val2);
-  val1 = modio.digitalRead(1);
-  Serial.print("digital Input 1: ");
-  Serial.println(val1);  
+
+  if(modio.digitalReadAll() & 1){
+    Serial.println("1");
+  }
+  if(modio.digitalReadAll() & 2){
+    Serial.println("2");
+  }
+  if(modio.digitalReadAll() & 4){
+    Serial.println("3");
+  }
+  if(modio.digitalReadAll() & 8){
+    Serial.println("4");
+  }
 
 //Reads and prints the analog inputs and their value 
 

@@ -1,7 +1,6 @@
 #include <Arduino.h>
 
 int _inputsPins[9] = {3,4,14,33,36,39};
-uint8_t _inputsPull[9] = {INPUT, INPUT, INPUT,INPUT, INPUT, INPUT, INPUT, INPUT};
 int _inputsPinsArraySize = sizeof(_inputsPins)/sizeof(int);
 
 enum input_names {
@@ -16,7 +15,7 @@ enum input_names {
     ARM_A_SENSOR_TOP,
     ARM_A_SENSOR_BOTTOM,
     CONTROLLER_ARMS_MOVING,
-    INPUT_NAMES_AMOUNT
+    NUM_INPUT
 };
 
 struct input {
@@ -28,12 +27,12 @@ struct input {
 };
 
 
-input _input[INPUT_NAMES_AMOUNT];
+input _input[NUM_INPUT];
 
 void initInputs()
 {
     Serial.println("Setup commencing");
-    for (int i = 0; i < INPUT_NAMES_AMOUNT; i++)
+    for (int i = 0; i < NUM_INPUT; i++)
     {
         Serial.printf("Setup %i \n", i);
         _input[i].id = i+1;
@@ -50,7 +49,7 @@ void initInputs()
 
 void getInputsState()
 {
-    for (int i = 0; i < INPUT_NAMES_AMOUNT; i++)  
+    for (int i = 0; i < NUM_INPUT; i++)  
     {
         Serial.printf("_input.id: %i _input.val:%i _input.debounce: %i _input.last: %i  _input.pin: %i \n",_input[i].id, _input[i].value, _input[i].debounce, _input[i].last, _input[i].pin);
     }    

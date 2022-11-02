@@ -1,7 +1,6 @@
-// ONGOING DEV: - completing the input structure,
-//                  x making up the helper function
-//                  x organizing the the inputs in an array or struct and maybe external file
-//                  - making a function for each input
+// ONGOING DEV: - making two Wire busses -> https://randomnerdtutorials.com/esp32-i2c-communication-arduino-ide/
+
+
 
 
 #include <Arduino.h>
@@ -11,7 +10,7 @@
 #include <Sherlocked.h>
 #include <Wire.h>
 #include <SparkFunSX1509.h>
-// #include <io_config.h>
+#include <MOD_IO.h>
 
 // Firmware version
 char firmware_version[] = "0.7";                                // inputs with callbacks and debouncing!
@@ -39,59 +38,72 @@ const int motor_controller_on_off_delay = 5000;  // delay between the HIGH and L
 const int debounce_time = 10;
 
 
-// PIN ASSIGNMENT
-// OUT
-#define motor_controller_arm_A_bottom_pin 5     //SX1509
-#define motor_controller_arm_A_top_pin 6        //SX1509
-#define motor_controller_arm_A_pause_pin 7      //SX1509
-#define motor_controller_arm_A_enable_pin 4     //SX1509
-#define arm_A_solenoid_safety_pin RELAY1        //mod-io board relay 
-#define motor_controller_arm_B_bottom_pin 9     //SX1509
-#define motor_controller_arm_B_top_pin 10       //SX1509
-#define motor_controller_arm_B_pause_pin 11     //SX1509
-#define motor_controller_arm_B_enable_pin 8     //SX1509
-#define arm_B_solenoid_safety_pin RELAY2        //mod-io board relay 
-#define motor_controller_rings_start_pin 1      //SX1509
-#define motor_controller_rings_enable_pin 0     //SX1509
-#define motor_controller_rings_pause_pin 2      //SX1509
-#define motor_controller_rings_resume_pin 3     //SX1509
-#define led_hole_pin 16                         //ESP32 io output (nog te solderen)
-// IN
-#define inductive_sensor_A_top_pin 1            // mod-io board opto 
-#define inductive_sensor_A_bottom_pin 2         // mod-io board opto
-#define motor_control_A_top_pin 14              // ESP32 interrupt input (nog te programmeren)
-#define motor_control_A_bottom_pin 32           // ESP32 interrupt input (nog te programmeren)
-#define inductive_sensor_B_top_pin 3            // mod-io board opto
-#define inductive_sensor_B_bottom_pin 4         // mod-io board opto
-#define motor_control_B_top_pin 35              // ESP32 interrupt input (nog te programmeren)
-#define motor_control_B_bottom_pin 36           // ESP32 interrupt input (nog te programmeren)
-#define motor_ring_running_pin 3                // ESP32 interrupt input (nog te programmeren)
-#define motor_ring_target_reached_pin 4         // ESP32 interrupt input (nog te programmeren)
+// INPUTS and OUTPUTS
+// These needs to correspond to the document at https://docs.google.com/document/d/1GiCjMT_ph-NuIOsD4InIvT-H3MmUkSkzBZRMM1L5IsI/edit#heading=h.wqfd6v7o79qu
 
-
-
-//in- and outputs --- these needs to correspond to the document at https://docs.google.com/document/d/1GiCjMT_ph-NuIOsD4InIvT-H3MmUkSkzBZRMM1L5IsI/edit#heading=h.wqfd6v7o79qu
+// how many do we have and do they need to start at a certain id? 
 #define NUM_OUTPUTS 9           // amount of outputs
 #define START_OUTPUT 1          // the start number of the output
 #define NUM_INPUTS 10           // amount of inputs
 #define START_INPUT 17          // the start number of the input
 
+// pin assignment
+// IN
+#define motor_control_A_top_pin 14              // ESP32 interrupt input (nog te programmeren)
+#define motor_control_A_bottom_pin 33           // ESP32 interrupt input (nog te programmeren)
+#define motor_control_B_top_pin 36              // ESP32 interrupt input (nog te programmeren)
+#define motor_control_B_bottom_pin 39           // ESP32 interrupt input (nog te programmeren)
+#define motor_ring_running_pin 3                // ESP32 interrupt input (nog te programmeren)
+#define motor_ring_target_reached_pin 4         // ESP32 interrupt input (nog te programmeren)
+#define inductive_sensor_A_top_pin 1            // mod-io board opto 
+#define inductive_sensor_A_bottom_pin 2         // mod-io board opto
+#define inductive_sensor_B_top_pin 3            // mod-io board opto
+#define inductive_sensor_B_bottom_pin 4         // mod-io board opto
+// OUT
+#define motor_controller_arm_A_bottom_pin 2     //SX1509
+#define motor_controller_arm_A_top_pin 1        //SX1509
+#define motor_controller_arm_A_pause_pin 3      //SX1509
+#define motor_controller_arm_A_enable_pin 0     //SX1509
+#define arm_A_solenoid_safety_pin RELAY1        //mod-io board relay 
+#define motor_controller_arm_B_bottom_pin 6     //SX1509
+#define motor_controller_arm_B_top_pin 5        //SX1509
+#define motor_controller_arm_B_pause_pin 7      //SX1509
+#define motor_controller_arm_B_enable_pin 4     //SX1509
+#define arm_B_solenoid_safety_pin RELAY2        //mod-io board relay 
+#define motor_controller_rings_start_pin 9      //SX1509
+#define motor_controller_rings_enable_pin 8     //SX1509
+#define motor_controller_rings_pause_pin 10     //SX1509
+#define motor_controller_rings_resume_pin 11    //SX1509
+#define led_hole_pin 32                         //ESP32 io output
+
+
+// lets put these pins in an array
+int _inputsPins[6] = {
+  motor_control_A_top_pin,
+  motor_control_A_bottom_pin,
+  motor_control_B_top_pin,
+  motor_control_B_bottom_pin,
+  motor_ring_running_pin,
+  motor_ring_target_reached_pin,
+};
+// lets calculate the size of this array so we can loop through it later on
+int _inputsPinsArraySize = sizeof(_inputsPins)/sizeof(int);
 
 // naming the IDs and values
 // these names are now numbered and can be used when calling an array numbers. Instead of inIDs[2] now inIDs[arm_A_controller_top]
 enum inputs{
-  TOP_SENSOR_CONTROLLER_ARM_A,
-  BOTTOM_SENSOR_CONTROLLER_ARM_A,
   TOP_CONTROLLER_ARM_A,
-  MOVING_CONTROLLER_ARM_A,
   BOTTOM_CONTROLLER_ARM_A,
-  TOP_SENSOR_CONTROLLER_ARM_B,
-  BOTTOM_SENSOR_CONTROLLER_ARM_B,
   TOP_CONTROLLER_ARM_B,
-  MOVING_CONTROLLER_ARM_B,
   BOTTOM_CONTROLLER_ARM_B,
   MOVING_CONTROLLER_RINGS,
-  TARGET_REACHED_CONTROLLER_RINGS
+  TARGET_REACHED_CONTROLLER_RINGS,
+  TOP_SENSOR_CONTROLLER_ARM_A,
+  BOTTOM_SENSOR_CONTROLLER_ARM_A,
+  TOP_SENSOR_CONTROLLER_ARM_B,
+  BOTTOM_SENSOR_CONTROLLER_ARM_B,
+  MOVING_CONTROLLER_ARM_B,
+  MOVING_CONTROLLER_ARM_A
 };
 enum outputs{
   TOP_CONTROLLER_ARMS,
@@ -105,11 +117,45 @@ enum outputs{
   RESUME_CONTROLLER_RINGS,
   LED_HOLE
 };
+
+// a struct to create more overview for the inputs
+struct input {
+    uint8_t id;
+    uint8_t value;
+    uint8_t pin;
+    uint32_t current_debounce;
+    uint32_t last;
+    uint32_t debounce;
+};
+
+// lets create those struct based on the amount of inputs we have
+input _input[NUM_INPUTS];
+
+// let's initiate those inputs and give them id's and connect them to the physival pins
+void initInputs()
+{
+    Serial.println("Setup commencing");
+    for (int i = 0; i < NUM_INPUTS; i++)
+    {
+        Serial.printf("Setup %i \n", i);
+        _input[i].id = i+START_INPUT;
+        if (i < _inputsPinsArraySize)
+        {
+            _input[i].debounce = 10;
+            _input[i].last = millis();
+            _input[i].pin = _inputsPins[i];
+            Serial.printf("input pin found! %i \n", _input[i].pin);
+            pinMode(_input[i].pin, INPUT_PULLUP);
+        } 
+    }
+}
+
+
 // and here we create the id and the value arrays which are callable by e.g. outIDs[led_hole] (which is 15)
 int outIDs[NUM_OUTPUTS];
 int outValues[NUM_OUTPUTS] = {0};
-int inIDs[NUM_INPUTS];
-int inValues[NUM_INPUTS] = {0};
+// int inIDs[NUM_INPUTS];
+// int inValues[NUM_INPUTS] = {0};
 // and two helper functions to set the id's of the out- and inputs.
 void setOutputsNum()
 {
@@ -129,31 +175,35 @@ void setOutputsNum()
     }
   }
 }
-void setInputsNum()
-{
-  Serial.print("Inputs: {");
-  for(int i = 0; i < NUM_INPUTS; i++)
-  {
-    inIDs[i] = i+START_INPUT;
-    Serial.print(i+START_INPUT);
-    Serial.printf("[%i]", inValues[i]);
-    if (i < NUM_INPUTS-1)
-    {
-      Serial.print(", ");
-    }
-    if (i >= NUM_INPUTS-1)
-    {
-      Serial.println("}");
-    }    
-  }
-}
+// void setInputsNum()
+// {
+//   Serial.print("Inputs: {");
+//   for(int i = 0; i < NUM_INPUTS; i++)
+//   {
+//     inIDs[i] = i+START_INPUT;
+//     Serial.print(i+START_INPUT);
+//     Serial.printf("[%i]", inValues[i]);
+//     if (i < NUM_INPUTS-1)
+//     {
+//       Serial.print(", ");
+//     }
+//     if (i >= NUM_INPUTS-1)
+//     {
+//       Serial.println("}");
+//     }    
+//   }
+// }
+
+// INPUT OUTPUT END ---
+//  that's it, now we can call for example _input[CONTROLLER_ARM_A_TARGET_TOP].pin or _input[CONTROLLER_ARM_A_TARGET_TOP].value
 
 
 // SETUP LIBS
 WiFiClient ethclient;
 PubSubClient client(ethclient);
 const byte SX1509_ADDRESS = 0x3E;     // io Externder SX1509 I2C address (set by ADDR1 and ADDR0 (00 by default 0x3E):
-SX1509 io;                        
+SX1509 io;    
+MOD_IO modio(0x58);                    
 
 
 // variables 
@@ -228,7 +278,6 @@ void setOutput(int outID, int value)
 };
 void setOutputWithMessage(int outID, int value, const char* request)
 {
-    outID = outID -1;
     outValues[outID] = value;
     DynamicJsonBuffer  jsonBuffer(200);
     JsonObject& root = jsonBuffer.createObject();
@@ -255,8 +304,8 @@ void blockMessage(uint8_t requested_id, uint8_t blocking_id)
     outid_val["value"] = outValues[requested_id];
     JsonArray& inputs = root.createNestedArray("inputs");
     JsonObject& inputsid_val = inputs.createNestedObject();
-    inputsid_val["id"] = inIDs[blocking_id];
-    inputsid_val["value"] = inValues[blocking_id];
+    inputsid_val["id"] = _input[blocking_id].id;
+    inputsid_val["value"] = _input[blocking_id].value;
     root["trigger"] = "block";
     char full_char[250];
     root.prettyPrintTo(full_char, sizeof(full_char));
@@ -364,8 +413,8 @@ void arms_solenoid_safety(int start)
 {
   if (start == 1 && arms_moving == false)
   {
-    digitalWrite(arm_A_solenoid_safety_pin, HIGH);
-    digitalWrite(arm_B_solenoid_safety_pin, HIGH);
+    modio.setRelay(arm_A_solenoid_safety_pin, 1);
+    modio.setRelay(arm_B_solenoid_safety_pin, 1);
     outValues[SOLENOID_CONTROLLER_ARMS] = 1;
     solenoid_A_extended = false; 
   } 
@@ -387,8 +436,8 @@ void arms_solenoid_safety(int start)
 
   else if (start == 0)
   {
-    digitalWrite(arm_A_solenoid_safety_pin, LOW);
-    digitalWrite(arm_B_solenoid_safety_pin, LOW);
+    modio.setRelay(arm_A_solenoid_safety_pin, 0);
+    modio.setRelay(arm_B_solenoid_safety_pin, 0);
     outValues[SOLENOID_CONTROLLER_ARMS] = 0;
     solenoid_A_extended = true;
   }    
@@ -461,7 +510,7 @@ void motor_controller_rings_start(int start){
   {
     rings_move = true; 
     io.digitalWrite(motor_controller_rings_start_pin, HIGH);
-    setOutputWithMessage(11, 1, "timer");
+    setOutputWithMessage(START_CONTROLLER_RINGS, 1, "timer");
     if (currentMicros - previousMicros >= motor_controller_on_off_delay)
     {
       previousMicros = currentMicros;
@@ -491,7 +540,7 @@ void motor_controller_rings_pause(int start){
   if (start == 1)
   {
     io.digitalWrite(motor_controller_rings_pause_pin, HIGH);
-    setOutputWithMessage(13, 1, "timer");    
+    setOutputWithMessage(PAUSE_CONTROLLER_RINGS, 1, "timer");    
     if (currentMicros - previousMicros >= motor_controller_on_off_delay)
     {
       previousMicros = currentMicros;
@@ -509,7 +558,7 @@ void motor_controller_rings_resume(int start){
   if (start == 1)
   {
     io.digitalWrite(motor_controller_rings_resume_pin, HIGH);
-    setOutputWithMessage(13, 1, "timer");    
+    setOutputWithMessage(RESUME_CONTROLLER_RINGS, 1, "timer");    
     if (currentMicros - previousMicros >= motor_controller_on_off_delay)
     {
       previousMicros = currentMicros;
@@ -543,64 +592,56 @@ void led_hole_clb(int start_end)
   }
 }
 
+
+
 // INPUT FUNCTIONS
-void inductive_sensor_A_top(int start){
-  if (start == 1)
-  {
-    arm_A_up = true;
-    inValues[1] = 1;
-  } 
-  else if (start == 0)
-  {
-    arm_A_up = 0;
-    inValues[1] = 0;
-  }  
-}
-void inductive_sensor_A_bottom(int start){
-  if (start == 1)
-  {
-    Serial.printf("inductive_sensor_A_bottom %i", start);
-    arm_A_down = true;
-    inValues[2] = 1;
-  } 
-  else if (start == 0)
-  {
-    Serial.printf("inductive_sensor_A_bottom %i", start);
-    arm_A_down = false;
-    inValues[2] = 0;
-  }  
-}
-  // inputCheckFunction(motor_control_A_top_pin, 19, &motor_control_A_up);
-  // inputCheckFunction(motor_control_A_bottom_pin, 19, &motor_control_A_bottom);  
-  // inputCheckFunction(inductive_sensor_B_top_pin, 19, &inductive_sensor_B_top);
-  // inputCheckFunction(inductive_sensor_B_bottom_pin, 19, &inductive_sensor_B_bottom);
-  // inputCheckFunction(motor_control_B_top_pin, 20, &motor_control_B_up);
-  // inputCheckFunction(motor_control_B_bottom_pin, 21, &motor_control_B_bottom);
-  // inputCheckFunction(motor_ring_running_pin, 22, &motor_ring_running);    
 
 
-// helper function to check input and start the right function
-void inputCheckFunction(const int inputPin, const int id, void (*input_callback)(int))
+// function to read, set and send the inputs on the controller
+void digitalReadSetValue(uint8_t name_id)
 {
-    int valuePOS =  id - 1;
-    currentDebounceMillis = millis();
-    if (currentDebounceMillis - last_debounce_time > debounce_time)
+    _input[name_id].current_debounce = millis();
+    if (_input[name_id].current_debounce - _input[name_id].last > _input[name_id].debounce)
     {
-        if (digitalRead(inputPin) && inValues[valuePOS] == 0) // dit moet gelinkt worden aan de inputState
+        if (!digitalRead(_input[name_id].pin) && _input[name_id].value == 0)
         {
-            inValues[valuePOS] = 1;
-            // Serial.printf("input %i: 1\n", inputPin);
-            input_callback(1);
+            _input[name_id].value = 1;
+            Sherlocked.sendInput(name_id, _input[name_id].value, T_INPUT);
+            Serial.printf("input %i: 1\n", _input[name_id].pin);
         }
-        else if (!digitalRead(inputPin) && inValues[valuePOS] == 1)
+        else if (digitalRead(_input[name_id].pin) && _input[name_id].value == 1)
         {
-            inValues[valuePOS] = 0;
-            // Serial.printf("input %i: 0\n", inputPin);
-            input_callback(0);
+            _input[name_id].value = 0;
+            Sherlocked.sendInput(name_id, _input[name_id].value, T_INPUT);
+            Serial.printf("input %i: 0\n", _input[name_id].pin);
         }
-        last_debounce_time = currentDebounceMillis;  
+        _input[name_id].last = _input[name_id].current_debounce;  
     }
 }
+
+// function to read, set and send the inputs on the modio
+// void modIOReadSetValue(uint8_t name_id)
+// {
+//     _input[name_id].current_debounce = millis();
+//     if (_input[name_id].current_debounce - _input[name_id].last > _input[name_id].debounce)
+//     {
+//         if (digitalRead(_input[name_id].pin) && _input[name_id].value == 0) // dit moet gelinkt worden aan de inputState
+//         {
+//             _input[name_id].value = 1;
+//             Sherlocked.sendInput(name_id);
+//             // Serial.printf("input %i: 1\n", inputPin);
+//         }
+//         else if (!digitalRead(_input[name_id].pin) && _input[name_id].value == 1)
+//         {
+//             _input[name_id].value = 0;
+//             Sherlocked.sendInput(name_id);
+//             // Serial.printf("input %i: 0\n", inputPin);
+//         }
+//         _input[name_id].last = _input[name_id].current_debounce;  
+//     }
+// }
+
+
 
 // set the state depending on the output
 void outputStateMachine(int id, int value)
@@ -650,16 +691,20 @@ void outputStateMachine(int id, int value)
 }
 void inputStateMachine()
 {
-
-  inputCheckFunction(inductive_sensor_A_top_pin, 18, &inductive_sensor_A_top);
-  inputCheckFunction(inductive_sensor_A_bottom_pin, 18, &inductive_sensor_A_bottom);
-  // inputCheckFunction(motor_control_A_top_pin, 19, &motor_control_A_up);
-  // inputCheckFunction(motor_control_A_bottom_pin, 19, &motor_control_A_bottom);  
-  // inputCheckFunction(inductive_sensor_B_top_pin, 19, &inductive_sensor_B_top);
-  // inputCheckFunction(inductive_sensor_B_bottom_pin, 19, &inductive_sensor_B_bottom);
-  // inputCheckFunction(motor_control_B_top_pin, 20, &motor_control_B_up);
-  // inputCheckFunction(motor_control_B_bottom_pin, 21, &motor_control_B_bottom);
-  // inputCheckFunction(motor_ring_running_pin, 22, &motor_ring_running);           
+  digitalReadSetValue(TOP_CONTROLLER_ARM_A);
+  digitalReadSetValue(BOTTOM_CONTROLLER_ARM_A);
+  digitalReadSetValue(TOP_CONTROLLER_ARM_B);
+  digitalReadSetValue(BOTTOM_CONTROLLER_ARM_B);
+  digitalReadSetValue(MOVING_CONTROLLER_RINGS);
+  digitalReadSetValue(TARGET_REACHED_CONTROLLER_RINGS);
+  // digitalReadSetValue(inductive_sensor_A_bottom_pin, 18, &inductive_sensor_A_bottom);
+  // digitalReadSetValue(motor_control_A_top_pin, 19, &motor_control_A_up);
+  // digitalReadSetValue(motor_control_A_bottom_pin, 19, &motor_control_A_bottom);  
+  // digitalReadSetValue(inductive_sensor_B_top_pin, 19, &inductive_sensor_B_top);
+  // digitalReadSetValue(inductive_sensor_B_bottom_pin, 19, &inductive_sensor_B_bottom);
+  // digitalReadSetValue(motor_control_B_top_pin, 20, &motor_control_B_up);
+  // digitalReadSetValue(motor_control_B_bottom_pin, 21, &motor_control_B_bottom);
+  // digitalReadSetValue(motor_ring_running_pin, 22, &motor_ring_running);           
 }
 
 // functions to set the in and outputs at the right starting position
@@ -678,12 +723,26 @@ char * getAllOutputs()
 }
 void sendAllInputs()
 {
-  char * msg = Sherlocked.sendInputs(NUM_INPUTS, inIDs, inValues, T_REQUEST);
+  int allids[NUM_INPUTS]; // actual ids
+  int allvals[NUM_INPUTS]; // actual values
+  for (int i = 0; i < NUM_INPUTS; i++)
+  {
+      allids[i]  = _input[i].id;
+      allvals[i] = _input[i].value;
+  }
+  char * msg = Sherlocked.sendInputs(NUM_INPUTS, allids, allvals, T_REQUEST);
   pubMsg(msg);
 }
 char * getAllInputs()
 {
-  char * msg = Sherlocked.sendInputs(NUM_INPUTS, inIDs, inValues, T_REQUEST);
+  int allids[NUM_INPUTS]; // actual ids
+  int allvals[NUM_INPUTS]; // actual values
+  for (int i = 0; i < NUM_INPUTS; i++)
+  {
+      allids[i]  = _input[i].id;
+      allvals[i] = _input[i].value;
+  }
+  char * msg = Sherlocked.sendInputs(NUM_INPUTS, allids, allvals, T_REQUEST);
   return(msg);
 }
 // helper functions for getting the right value for the right id
@@ -722,7 +781,7 @@ int getInputArrayIndexByID(int id)
 {
   for (int i = 0; i < NUM_INPUTS; i++)
   {
-    if (inIDs[i] == id)
+    if (_input[i].id == id)
     {
       return i;
     }
@@ -873,8 +932,8 @@ void inputCallback(int meth, int numInputs, int ids[], int vals[], int trigger)
         int idx = getInputArrayIndexByID(ids[i]); // find the array index of the output id on this board
         if (idx != UNDEFINED) // if found store it
         {
-          aids[numOnBoard]  = inIDs[idx];
-          avals[numOnBoard] = inValues[idx];
+          aids[numOnBoard]  = _input[idx].id;
+          avals[numOnBoard] = _input[idx].value;
           numOnBoard++;
         }
       }
@@ -883,8 +942,7 @@ void inputCallback(int meth, int numInputs, int ids[], int vals[], int trigger)
     }
     else  // If no input id's are provided, feed them all back
     {
-      char * msg = Sherlocked.sendInputs(NUM_INPUTS, inIDs, inValues, T_REQUEST);
-      pubMsg(msg);
+      sendAllInputs();
     }
   }
   else if (meth == M_INFO) // listen to other input info
@@ -1263,8 +1321,8 @@ void commandCallback(int meth, int cmd, const char value[], int triggerID)
       for (int i = 0; i < NUM_INPUTS; i++)
       {
         JsonObject& ind_val = inputs.createNestedObject();
-        ind_val["id"] = inIDs[i];
-        ind_val["value"] = inValues[i];
+        ind_val["id"] = _input[i].id;
+        ind_val["value"] = _input[i].value;
       }
       JsonArray& outputs = root.createNestedArray("outputs");
       for (int i = 0; i < NUM_OUTPUTS; i++)
@@ -1291,20 +1349,29 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Conductive MQTT Sensor");
 
+  initInputs();
+
+
   setOutputsNum();
-  setInputsNum();
 
   // pwm output setup for led_hole
   ledcSetup(ledChannel, freq, resolution);
   ledcAttachPin(led_hole_pin, ledChannel);
 
-  Wire.begin(5,13);
+  modio.begin();
 
-  if (io.begin(SX1509_ADDRESS) == false)
+  Wire1.begin(5, 15, 400000U);
+  if (io.begin(SX1509_ADDRESS, Wire1) == false)
   {
     Serial.println("Failed to communicate. Check wiring and address of SX1509.");
-    while (1)
-      ; // If we fail to communicate, loop forever.
+    DynamicJsonBuffer  jsonBuffer(200);
+    JsonObject& root = jsonBuffer.createObject();
+    root["sender"] = hostname;
+    root["method"] = "info";
+    root["trigger"] = "electronics failure at SX1509";
+    char full_char[250];
+    root.prettyPrintTo(full_char, sizeof(full_char));
+    pubMsg(full_char);  
   }
 
   io.pinMode(motor_controller_rings_enable_pin, OUTPUT);  //Use io_OUT and io_IN instead of OUTPUT and INPUT_PULLUP
@@ -1312,10 +1379,6 @@ void setup() {
   io.pinMode(motor_controller_rings_pause_pin, OUTPUT);
   io.pinMode(motor_controller_rings_resume_pin, OUTPUT);
 
-  pinMode(inductive_sensor_A_top_pin, INPUT); // 36 t/m 39 heeft geen pullup -> dubbel testen
-  pinMode(inductive_sensor_B_bottom_pin, INPUT); // 36 t/m 39 heeft geen pullup -> dubbel testen
-
-  
 
   // start the ethernet client
   WiFi.onEvent(WiFiEvent);
