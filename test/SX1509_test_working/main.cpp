@@ -29,7 +29,7 @@ void setup()
   Serial.begin(115200);
   Serial.println("SX1509 Example");
 
-  Wire.begin(5,13);
+  Wire.begin(5,15);
 
   // Call io.begin(<address>) to initialize the SX1509. If it
   // successfully communicates, it'll return 1.
@@ -63,30 +63,30 @@ void loop()
   Serial.println("HIGH");
   io.digitalWrite(PIN_1, HIGH);
   io.digitalWrite(PIN_2, HIGH);
-  io.digitalWrite(PIN_3, HIGH);
-  io.digitalWrite(PIN_4, HIGH);
+  // io.digitalWrite(PIN_3, HIGH);
+  // io.digitalWrite(PIN_4, HIGH);
   io.digitalWrite(PIN_5, HIGH);
   io.digitalWrite(PIN_6, HIGH);
-  io.digitalWrite(PIN_7, HIGH);
-  io.digitalWrite(PIN_8, HIGH);
-  io.digitalWrite(PIN_9, HIGH);
-  io.digitalWrite(PIN_10, HIGH);
-  io.digitalWrite(PIN_11, HIGH);
-  io.digitalWrite(PIN_12, HIGH);    
+  // io.digitalWrite(PIN_7, HIGH);
+  // io.digitalWrite(PIN_8, HIGH);
+  // io.digitalWrite(PIN_9, HIGH);
+  // io.digitalWrite(PIN_10, HIGH);
+  // io.digitalWrite(PIN_11, HIGH);
+  // io.digitalWrite(PIN_12, HIGH);    
   delay(5000);   
   Serial.println("LOW");                          // Delay half-a-second
   io.digitalWrite(PIN_1, LOW);
   io.digitalWrite(PIN_2, LOW); 
-  io.digitalWrite(PIN_3, LOW); 
-  io.digitalWrite(PIN_4, LOW); 
+  // io.digitalWrite(PIN_3, LOW); 
+  // io.digitalWrite(PIN_4, LOW); 
   io.digitalWrite(PIN_5, LOW);
   io.digitalWrite(PIN_6, LOW); 
-  io.digitalWrite(PIN_7, LOW); 
-  io.digitalWrite(PIN_8, LOW); 
-  io.digitalWrite(PIN_9, LOW);
-  io.digitalWrite(PIN_10, LOW); 
-  io.digitalWrite(PIN_11, LOW); 
-  io.digitalWrite(PIN_12, LOW);     
+  // io.digitalWrite(PIN_7, LOW); 
+  // io.digitalWrite(PIN_8, LOW); 
+  // io.digitalWrite(PIN_9, LOW);
+  // io.digitalWrite(PIN_10, LOW); 
+  // io.digitalWrite(PIN_11, LOW); 
+  // io.digitalWrite(PIN_12, LOW);     
   delay(5000);                           // Delay half-a-second
 
 }
