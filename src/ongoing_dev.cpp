@@ -8,16 +8,16 @@
 #include <MOD_IO.h>
 
 // Firmware version
-char firmware_version[] = "0.7";                                // inputs with callbacks and debouncing!
+char firmware_version[] = "0.8";                                // final pin lay out
 
 // SETTINGS
 
 // mqtt/ace settings
-char hostname[] ="controller";                                  // the hostname for board  <= REPLACE
+char hostname[] ="centerpiece-control";                                  // the hostname for board  <= REPLACE
 const char gen_topic[] = "alch";  
-const char puzzle_topic[] = "alch/centrepiece"; 
-const char module_topic[] = "alch/centrepiece/controller";      // the module name of the board <= REPLACE
-IPAddress server(192, 168, 178, 213);                           // ip address of the mqtt/ace server <= REPLACE
+const char puzzle_topic[] = "alch/centerpiece"; 
+const char module_topic[] = "alch/centerpiece/centerpiece-control";      // the module name of the board <= REPLACE
+IPAddress server(10, 0, 0, 10);                                 // ip address of the mqtt/ace server <= REPLACE
 
 
 // controller settings
@@ -27,7 +27,7 @@ const int ledChannel = 0;
 const int resolution = 12;
 
 // motor controllers
-const int motor_controller_on_off_delay = 5000;  // delay between the HIGH and LOW for the motor controllers in microseconds
+const int motor_controller_on_off_delay = 2500;  // delay between the HIGH and LOW for the motor controllers in microseconds
 
 // input debounce time
 const int debounce_time = 10;
@@ -55,20 +55,23 @@ const int debounce_time = 10;
 #define inductive_sensor_B_top_pin 3            // mod-io board opto
 #define inductive_sensor_B_bottom_pin 4         // mod-io board opto
 // OUT
-#define motor_controller_arm_A_bottom_pin 2     //SX1509
-#define motor_controller_arm_A_top_pin 1        //SX1509
-#define motor_controller_arm_A_pause_pin 3      //SX1509
+// motor controller arm a pins
 #define motor_controller_arm_A_enable_pin 0     //SX1509
+#define motor_controller_arm_A_top_pin 1        //SX1509
+#define motor_controller_arm_A_bottom_pin 2     //SX1509
+#define motor_controller_arm_A_pause_pin 3      //SX1509
 #define arm_A_solenoid_safety_pin RELAY1        //mod-io board relay 
-#define motor_controller_arm_B_bottom_pin 6     //SX1509
-#define motor_controller_arm_B_top_pin 5        //SX1509
-#define motor_controller_arm_B_pause_pin 7      //SX1509
-#define motor_controller_arm_B_enable_pin 4     //SX1509
+// motor controller arm b pins
+#define motor_controller_arm_B_enable_pin 8     //SX1509
+#define motor_controller_arm_B_top_pin 9        //SX1509
+#define motor_controller_arm_B_bottom_pin 10    //SX1509
+#define motor_controller_arm_B_pause_pin 11     //SX1509
 #define arm_B_solenoid_safety_pin RELAY2        //mod-io board relay 
-#define motor_controller_rings_start_pin 9      //SX1509
-#define motor_controller_rings_enable_pin 8     //SX1509
-#define motor_controller_rings_pause_pin 10     //SX1509
-#define motor_controller_rings_resume_pin 11    //SX1509
+// rings pins
+#define motor_controller_rings_enable_pin 4     //SX1509
+#define motor_controller_rings_start_pin 5      //SX1509
+#define motor_controller_rings_pause_pin 6      //SX1509
+#define motor_controller_rings_resume_pin 7     //SX1509
 #define led_hole_pin 32                         //ESP32 io output
 
 
@@ -213,9 +216,6 @@ bool arm_A_down = false;
 bool arm_B_up = false;
 bool arm_B_down= false;
 bool arm_B_moving = false;
-bool arms_moving = false;
-bool solenoid_A_extended = true; 
-bool solenoid_B_extended = true; 
 int dutyCycle = 0; 
 unsigned long currentMicros;
 unsigned long currentDebounceMillis;
@@ -308,37 +308,73 @@ void blockMessage(uint8_t requested_id, uint8_t blocking_id)
 };
 
 // OUTPUT FUNCTIONS
-// the motor functions
-void motor_controller_arms_top_position(int start){
-  if (start == 1 && rings_move == false && solenoid_A_extended == false)
+// arms motor functions
+void motor_controller_arms_enable(int start){
+  if (start == 1)
   {
-    io.digitalWrite(motor_controller_arm_A_bottom_pin, HIGH);
-    io.digitalWrite(motor_controller_arm_B_bottom_pin, HIGH);
-    outValues[TOP_CONTROLLER_ARMS] = 1;
+    io.digitalWrite(motor_controller_arm_A_enable_pin, HIGH);
+    io.digitalWrite(motor_controller_arm_B_enable_pin, HIGH);
+    outValues[ENABLE_CONTROLLER_ARMS] = 1;
+    Serial.printf("ENABLE_CONTROLLER_ARMS function start 1: %i\n", outValues[ENABLE_CONTROLLER_ARMS]);
   } 
-  else if (start == 1 && rings_move == true)
+  else if (start == 0)
   {
-    blockMessage(TOP_CONTROLLER_ARMS, MOVING_CONTROLLER_RINGS);
+    io.digitalWrite(motor_controller_arm_A_enable_pin, LOW);
+    io.digitalWrite(motor_controller_arm_B_enable_pin, LOW);
+    outValues[ENABLE_CONTROLLER_ARMS] = 0;
+    Serial.printf("ENABLE_CONTROLLER_ARMS function start 0: %i\n", outValues[ENABLE_CONTROLLER_ARMS]);
+  }  
+}
+void motor_controller_arms_top_position(int start){
+  if (start == 1 && outValues[START_CONTROLLER_RINGS] == 0 && outValues[SOLENOID_CONTROLLER_ARMS] == 0)
+  {
+    io.digitalWrite(motor_controller_arm_A_top_pin, HIGH);
+    io.digitalWrite(motor_controller_arm_B_top_pin, HIGH);
+    setOutputWithMessage(TOP_CONTROLLER_ARMS, 1, "timer");
+    if (currentMicros - previousMicros >= motor_controller_on_off_delay)
+    {
+      previousMicros = currentMicros;
+      io.digitalWrite(motor_controller_arm_A_top_pin, LOW);
+      io.digitalWrite(motor_controller_arm_B_top_pin, LOW);
+    }     
+    outValues[TOP_CONTROLLER_ARMS] = 1;
+    Serial.printf("TOP_CONTROLLER_ARMS function start 1: %i\n", outValues[TOP_CONTROLLER_ARMS]);
+  } 
+  else if (start == 1 && START_CONTROLLER_RINGS == 1)
+  {
+    blockMessage(TOP_CONTROLLER_ARMS, START_CONTROLLER_RINGS);
+  } 
+  else if (start == 1 && SOLENOID_CONTROLLER_ARMS == 1)
+  {
+    blockMessage(TOP_CONTROLLER_ARMS, SOLENOID_CONTROLLER_ARMS);
   } 
   else if (start == 1 && MOVING_CONTROLLER_RINGS == true)
   {
     blockMessage(TOP_CONTROLLER_ARMS, MOVING_CONTROLLER_RINGS); 
-  }   
-  else if (start == 0)
+  }    
+  if (start == 0)
   {
     io.digitalWrite(motor_controller_arm_A_bottom_pin, LOW);
     io.digitalWrite(motor_controller_arm_B_bottom_pin, LOW);
     outValues[TOP_CONTROLLER_ARMS] = 0;
+    Serial.printf("TOP_CONTROLLER_ARMS function start 0: %i\n", outValues[TOP_CONTROLLER_ARMS]);    
   }
 }
 void motor_controller_arms_bottom_position(int start){
-  if (start == 1 && rings_move == false && solenoid_A_extended == false)
+  if (start == 1 && outValues[START_CONTROLLER_RINGS] == 0 && outValues[SOLENOID_CONTROLLER_ARMS] == 0)
   {
     io.digitalWrite(motor_controller_arm_A_bottom_pin, HIGH);
     io.digitalWrite(motor_controller_arm_B_bottom_pin, HIGH);
+    setOutputWithMessage(BOTTOM_CONTROLLER_ARMS, 1, "timer");
+    if (currentMicros - previousMicros >= motor_controller_on_off_delay)
+    {
+      previousMicros = currentMicros;
+      io.digitalWrite(motor_controller_arm_A_bottom_pin, LOW);
+      io.digitalWrite(motor_controller_arm_B_bottom_pin, LOW);
+    }     
     outValues[BOTTOM_CONTROLLER_ARMS] = 1;
   } 
-  else if (start == 1 && rings_move == true)
+  else if (start == 1 && outValues[START_CONTROLLER_RINGS] == 1)
   {
       DynamicJsonBuffer  jsonBuffer(200);
       JsonObject& root = jsonBuffer.createObject();
@@ -353,7 +389,7 @@ void motor_controller_arms_bottom_position(int start){
       root.prettyPrintTo(full_char, sizeof(full_char));
       pubMsg(full_char);  
   }   
-  else if (start == 1 && solenoid_A_extended == true)
+  else if (start == 1 && outValues[SOLENOID_CONTROLLER_ARMS] == 1)
   {
       DynamicJsonBuffer  jsonBuffer(200);
       JsonObject& root = jsonBuffer.createObject();
@@ -363,7 +399,7 @@ void motor_controller_arms_bottom_position(int start){
       JsonObject& outid_val = outputs.createNestedObject();
       outid_val["id"] = outIDs[1];
       outid_val["value"] = outValues[1];
-      root["trigger"] = "solenoid A still extended";
+      root["trigger"] = "Solenoids still extended";
       char full_char[250];
       root.prettyPrintTo(full_char, sizeof(full_char));
       pubMsg(full_char);  
@@ -375,26 +411,18 @@ void motor_controller_arms_bottom_position(int start){
     outValues[BOTTOM_CONTROLLER_ARMS] = 0;
   }
 }
-void motor_controller_arms_enable(int start){
-  if (start == 1)
-  {
-    io.digitalWrite(motor_controller_arm_A_enable_pin, HIGH);
-    io.digitalWrite(motor_controller_arm_B_enable_pin, HIGH);
-    outValues[ENABLE_CONTROLLER_ARMS] = 1;
-    Serial.printf("ENABLE_CONTROLLER_ARMS: %i \n", outValues[ENABLE_CONTROLLER_ARMS]);
-  } 
-  else if (start == 0)
-  {
-    digitalWrite(motor_controller_arm_A_enable_pin, LOW);
-    digitalWrite(motor_controller_arm_B_enable_pin, LOW);
-    outValues[ENABLE_CONTROLLER_ARMS] = 0;
-  }  
-}
 void motor_controller_arms_pause(int start){
   if (start == 1)
   {
     io.digitalWrite(motor_controller_arm_A_pause_pin, HIGH);
     io.digitalWrite(motor_controller_arm_B_pause_pin, HIGH);
+    setOutputWithMessage(PAUSE_CONTROLLER_ARMS, 1, "timer");
+    if (currentMicros - previousMicros >= motor_controller_on_off_delay)
+    {
+      previousMicros = currentMicros;
+      io.digitalWrite(motor_controller_arm_A_pause_pin, LOW);
+      io.digitalWrite(motor_controller_arm_B_pause_pin, LOW);
+    }    
     outValues[PAUSE_CONTROLLER_ARMS] = 1;
   } 
   else if (start == 0)
@@ -406,14 +434,13 @@ void motor_controller_arms_pause(int start){
 }
 void arms_solenoid_safety(int start)
 {
-  if (start == 1 && arms_moving == false)
+  if (start == 1 && outValues[MOVING_CONTROLLER_ARM_A] == 0 && outValues[MOVING_CONTROLLER_ARM_B] == 0)
   {
     modio.setRelay(arm_A_solenoid_safety_pin, 1);
     modio.setRelay(arm_B_solenoid_safety_pin, 1);
     outValues[SOLENOID_CONTROLLER_ARMS] = 1;
-    solenoid_A_extended = false; 
   } 
-  if (start == 1 && arms_moving == true)
+  if (start == 1 && outValues[MOVING_CONTROLLER_ARM_A] == 1 && outValues[MOVING_CONTROLLER_ARM_B] == 1)
   {
       DynamicJsonBuffer  jsonBuffer(200);
       JsonObject& root = jsonBuffer.createObject();
@@ -423,7 +450,7 @@ void arms_solenoid_safety(int start)
       JsonObject& outid_val = outputs.createNestedObject();
       outid_val["id"] = outIDs[4];
       outid_val["value"] = outValues[4];
-      root["trigger"] = "arms moving";
+      root["trigger"] = "Arms moving";
       char full_char[250];
       root.prettyPrintTo(full_char, sizeof(full_char));
       pubMsg(full_char);  
@@ -434,7 +461,6 @@ void arms_solenoid_safety(int start)
     modio.setRelay(arm_A_solenoid_safety_pin, 0);
     modio.setRelay(arm_B_solenoid_safety_pin, 0);
     outValues[SOLENOID_CONTROLLER_ARMS] = 0;
-    solenoid_A_extended = true;
   }    
 }
 
@@ -499,6 +525,20 @@ void arms_solenoid_safety(int start)
 //   }    
 // }
 
+// rings functions 
+void motor_controller_rings_enable(int start){
+  if (start == 1)
+  {
+    io.digitalWrite(motor_controller_rings_enable_pin, HIGH);
+    outValues[ENABLE_CONTROLLER_RINGS] = 1;
+  } 
+  else if (start == 0)
+  {
+    io.digitalWrite(motor_controller_rings_enable_pin, LOW);
+    outValues[ENABLE_CONTROLLER_RINGS] = 0;
+  }  
+}
+
 void motor_controller_rings_start(int start){
   // if (start == 1 && arm_A_up == true)
   if (start == 1)
@@ -519,18 +559,7 @@ void motor_controller_rings_start(int start){
     outValues[START_CONTROLLER_RINGS] = 0;
   }
 }
-void motor_controller_rings_enable(int start){
-  if (start == 1)
-  {
-    io.digitalWrite(motor_controller_rings_enable_pin, HIGH);
-    outValues[ENABLE_CONTROLLER_RINGS] = 1;
-  } 
-  else if (start == 0)
-  {
-    io.digitalWrite(motor_controller_rings_enable_pin, LOW);
-    outValues[ENABLE_CONTROLLER_RINGS] = 0;
-  }  
-}
+
 void motor_controller_rings_pause(int start){
   if (start == 1)
   {
@@ -643,17 +672,19 @@ void outputStateMachine(int id, int value)
 {
   id = id -1; 
   dbf("outputStateMachine received id: %i with value: %i\n", id, value);
+  if (id == ENABLE_CONTROLLER_ARMS ){
+    Serial.printf("ENABLE_CONTROLLER_ARMS OutputStateMachine %i \n", outValues[ENABLE_CONTROLLER_ARMS]);
+    motor_controller_arms_enable(value);
+  }  
   if (id == TOP_CONTROLLER_ARMS ){
     Serial.println("TOP_CONTROLLER_ARMS");
+    Serial.printf("SOLENOID_CONTROLLER_ARMS: %i\n", outValues[SOLENOID_CONTROLLER_ARMS]);
+    Serial.printf("START_CONTROLLER_RINGS: %i\n", outValues[START_CONTROLLER_RINGS]);
     motor_controller_arms_top_position(value);    
   }
   if (id == BOTTOM_CONTROLLER_ARMS ){
    Serial.println("BOTTOM_CONTROLLER_ARMS");
    motor_controller_arms_bottom_position(value);
-  }
-  if (id == ENABLE_CONTROLLER_ARMS ){
-    Serial.printf("ENABLE_CONTROLLER_ARMS %i", ENABLE_CONTROLLER_ARMS);
-    motor_controller_arms_enable(value);
   }
   if (id == PAUSE_CONTROLLER_ARMS ){
     Serial.printf("PAUSE_CONTROLLER_ARMS %i", PAUSE_CONTROLLER_ARMS);
@@ -663,13 +694,13 @@ void outputStateMachine(int id, int value)
     Serial.println("SOLENOID_CONTROLLER_ARMS");
     arms_solenoid_safety(value);
   }  
-  if (id == START_CONTROLLER_RINGS ){
-    Serial.println("START_CONTROLLER_RINGS");
-    motor_controller_rings_start(value);
-  }
   if (id == ENABLE_CONTROLLER_RINGS ){
     Serial.println("ENABLE_CONTROLLER_RINGS");
     motor_controller_rings_enable(value);
+  }  
+  if (id == START_CONTROLLER_RINGS ){
+    Serial.println("START_CONTROLLER_RINGS");
+    motor_controller_rings_start(value);
   }
   if (id == PAUSE_CONTROLLER_RINGS ){
     Serial.println("PAUSE_CONTROLLER_RINGS");
