@@ -1422,9 +1422,6 @@ void setup() {
   Sherlocked.setOutputCallback(outputCallback);
   /* Catch-all callback for json messages that were not handled by other callbacks */
   Sherlocked.setJSONCallback(jsonCallback);
-
-  outValues[SOLENOID_CONTROLLER_ARMS] = 1;
-
 }
 
 
