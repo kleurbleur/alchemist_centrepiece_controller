@@ -37,7 +37,7 @@ const int debounce_time = 10;
 // These needs to correspond to the document at https://docs.google.com/document/d/1GiCjMT_ph-NuIOsD4InIvT-H3MmUkSkzBZRMM1L5IsI/edit#heading=h.wqfd6v7o79qu
 
 // how many do we have and do they need to start at a certain id? 
-#define NUM_OUTPUTS 9           // amount of outputs
+#define NUM_OUTPUTS 15           // amount of outputs
 #define START_OUTPUT 1          // the start number of the output
 #define NUM_INPUTS 10           // amount of inputs
 #define START_INPUT 17          // the start number of the input
@@ -354,8 +354,8 @@ void motor_controller_arms_top_position(int start){
   }    
   if (start == 0)
   {
-    io.digitalWrite(motor_controller_arm_A_bottom_pin, LOW);
-    io.digitalWrite(motor_controller_arm_B_bottom_pin, LOW);
+    io.digitalWrite(motor_controller_arm_A_top_pin, LOW);
+    io.digitalWrite(motor_controller_arm_B_top_pin, LOW);
     outValues[TOP_CONTROLLER_ARMS] = 0;
     Serial.printf("TOP_CONTROLLER_ARMS function start 0: %i\n", outValues[TOP_CONTROLLER_ARMS]);    
   }
@@ -538,10 +538,9 @@ void motor_controller_rings_enable(int start){
     outValues[ENABLE_CONTROLLER_RINGS] = 0;
   }  
 }
-
 void motor_controller_rings_start(int start){
   // if (start == 1 && arm_A_up == true)
-  if (start == 1)
+  if (start == 1 && outValues[TOP_CONTROLLER_ARMS] == 1)
   {
     rings_move = true; 
     io.digitalWrite(motor_controller_rings_start_pin, HIGH);
@@ -553,13 +552,16 @@ void motor_controller_rings_start(int start){
     } 
     outValues[START_CONTROLLER_RINGS] = 1;
   } 
+  else if (start == 1 && START_CONTROLLER_RINGS == 0)
+  {
+    blockMessage(START_CONTROLLER_RINGS, TOP_CONTROLLER_ARMS);
+  }   
   else if (start == 0)
   {
     io.digitalWrite(motor_controller_rings_start_pin, LOW);
     outValues[START_CONTROLLER_RINGS] = 0;
   }
 }
-
 void motor_controller_rings_pause(int start){
   if (start == 1)
   {
