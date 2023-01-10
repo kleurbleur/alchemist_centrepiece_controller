@@ -340,17 +340,15 @@ void motor_controller_arms_top_position(int start){
     outValues[TOP_CONTROLLER_ARMS] = 1;
     Serial.printf("TOP_CONTROLLER_ARMS function start 1: %i\n", outValues[TOP_CONTROLLER_ARMS]);
   } 
-  else if (start == 1 && outValues[START_CONTROLLER_RINGS] == 1)
+  else if (start == 1 && START_CONTROLLER_RINGS == 1)
   {
-    Serial.printf("blockmessage: START_CONTROLLER_RINGS %i", outValues[START_CONTROLLER_RINGS]);
     blockMessage(TOP_CONTROLLER_ARMS, START_CONTROLLER_RINGS);
   } 
-  else if (start == 1 && outValues[SOLENOID_CONTROLLER_ARMS] == 1)
+  else if (start == 1 && SOLENOID_CONTROLLER_ARMS == 1)
   {
-    Serial.printf("blockmessage: SOLENOID_CONTROLLER_ARMS %i", outValues[SOLENOID_CONTROLLER_ARMS]);
     blockMessage(TOP_CONTROLLER_ARMS, SOLENOID_CONTROLLER_ARMS);
   } 
-  else if (start == 1 && outValues[MOVING_CONTROLLER_RINGS] == true)
+  else if (start == 1 && MOVING_CONTROLLER_RINGS == true)
   {
     blockMessage(TOP_CONTROLLER_ARMS, MOVING_CONTROLLER_RINGS); 
   }    
@@ -378,11 +376,33 @@ void motor_controller_arms_bottom_position(int start){
   } 
   else if (start == 1 && outValues[START_CONTROLLER_RINGS] == 1)
   {
-    blockMessage(BOTTOM_CONTROLLER_ARMS, START_CONTROLLER_RINGS);
+      DynamicJsonBuffer  jsonBuffer(200);
+      JsonObject& root = jsonBuffer.createObject();
+      root["sender"] = hostname;
+      root["method"] = "info";
+      JsonArray& outputs = root.createNestedArray("outputs");
+      JsonObject& outid_val = outputs.createNestedObject();
+      outid_val["id"] = outIDs[1];
+      outid_val["value"] = outValues[1];
+      root["trigger"] = "rings still move";
+      char full_char[250];
+      root.prettyPrintTo(full_char, sizeof(full_char));
+      pubMsg(full_char);  
   }   
   else if (start == 1 && outValues[SOLENOID_CONTROLLER_ARMS] == 1)
   {
-    blockMessage(BOTTOM_CONTROLLER_ARMS, SOLENOID_CONTROLLER_ARMS);
+      DynamicJsonBuffer  jsonBuffer(200);
+      JsonObject& root = jsonBuffer.createObject();
+      root["sender"] = hostname;
+      root["method"] = "info";
+      JsonArray& outputs = root.createNestedArray("outputs");
+      JsonObject& outid_val = outputs.createNestedObject();
+      outid_val["id"] = outIDs[1];
+      outid_val["value"] = outValues[1];
+      root["trigger"] = "Solenoids still extended";
+      char full_char[250];
+      root.prettyPrintTo(full_char, sizeof(full_char));
+      pubMsg(full_char);  
   }     
   else if (start == 0)
   {
@@ -420,15 +440,23 @@ void arms_solenoid_safety(int start)
     modio.setRelay(arm_B_solenoid_safety_pin, 1);
     outValues[SOLENOID_CONTROLLER_ARMS] = 1;
   } 
-  if (start == 1 && outValues[MOVING_CONTROLLER_ARM_A] == 1)
+  if (start == 1 && outValues[MOVING_CONTROLLER_ARM_A] == 1 && outValues[MOVING_CONTROLLER_ARM_B] == 1)
   {
-    blockMessage(SOLENOID_CONTROLLER_ARMS, MOVING_CONTROLLER_ARM_A);
+      DynamicJsonBuffer  jsonBuffer(200);
+      JsonObject& root = jsonBuffer.createObject();
+      root["sender"] = hostname;
+      root["method"] = "info";
+      JsonArray& outputs = root.createNestedArray("outputs");
+      JsonObject& outid_val = outputs.createNestedObject();
+      outid_val["id"] = outIDs[4];
+      outid_val["value"] = outValues[4];
+      root["trigger"] = "Arms moving";
+      char full_char[250];
+      root.prettyPrintTo(full_char, sizeof(full_char));
+      pubMsg(full_char);  
   }
-  if (start == 1 && outValues[MOVING_CONTROLLER_ARM_B] == 1)
-  {
-    blockMessage(SOLENOID_CONTROLLER_ARMS, MOVING_CONTROLLER_ARM_B);
-  }
-  if (start == 0)
+
+  else if (start == 0)
   {
     modio.setRelay(arm_A_solenoid_safety_pin, 0);
     modio.setRelay(arm_B_solenoid_safety_pin, 0);
@@ -511,7 +539,8 @@ void motor_controller_rings_enable(int start){
   }  
 }
 void motor_controller_rings_start(int start){
-  if (start == 1 && outValues[TOP_CONTROLLER_ARMS] == 1 && outValues[BOTTOM_CONTROLLER_ARMS] == 0)
+  // if (start == 1 && arm_A_up == true)
+  if (start == 1 && outValues[TOP_CONTROLLER_ARMS] == 1)
   {
     rings_move = true; 
     io.digitalWrite(motor_controller_rings_start_pin, HIGH);
@@ -523,14 +552,10 @@ void motor_controller_rings_start(int start){
     } 
     outValues[START_CONTROLLER_RINGS] = 1;
   } 
-  else if (start == 1 && outValues[TOP_CONTROLLER_ARMS] == 0)
+  else if (start == 1 && START_CONTROLLER_RINGS == 0)
   {
     blockMessage(START_CONTROLLER_RINGS, TOP_CONTROLLER_ARMS);
   }   
-  else if (start == 1 && outValues[BOTTOM_CONTROLLER_ARMS] == 1)
-  {
-    blockMessage(START_CONTROLLER_RINGS, BOTTOM_CONTROLLER_ARMS);
-  }     
   else if (start == 0)
   {
     io.digitalWrite(motor_controller_rings_start_pin, LOW);
@@ -1422,8 +1447,6 @@ void setup() {
   Sherlocked.setOutputCallback(outputCallback);
   /* Catch-all callback for json messages that were not handled by other callbacks */
   Sherlocked.setJSONCallback(jsonCallback);
-
-  outValues[SOLENOID_CONTROLLER_ARMS] = 1;
 
 }
 
